@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Soundara UI Options - Live Demo</title>
+    
+    <!-- Current Active Style -->
+    <link id="active-style" rel="stylesheet" href="option1_glassmorphic.css">
+    
+    <style>
+        /* Style Switcher Controls */
+        .style-switcher {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.9);
+            padding: 20px;
+            border-radius: 16px;
+            z-index: 10000;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+            min-width: 250px;
+        }
+        
+        .style-switcher h3 {
+            color: white;
+            margin: 0 0 15px 0;
+            font-size: 16px;
+            font-weight: 600;
+        }
+        
+        .style-option {
+            background: linear-gradient(135deg, #6366f1, #8b5cf6);
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            margin-bottom: 10px;
+            border-radius: 10px;
+            cursor: pointer;
+            width: 100%;
+            font-weight: 600;
+            font-size: 14px;
+            transition: all 0.3s ease;
+            display: block;
+        }
+        
+        .style-option:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(99, 102, 241, 0.5);
+        }
+        
+        .style-option.active {
+            background: linear-gradient(135deg, #10b981, #059669);
+            box-shadow: 0 0 20px rgba(16, 185, 129, 0.5);
+        }
+        
+        .style-option.opt2 {
+            background: linear-gradient(135deg, #ff006e, #00f5ff);
+        }
+        
+        .style-option.opt3 {
+            background: linear-gradient(135deg, #8ba888, #c4b59d);
+        }
+        
+        .style-option.opt4 {
+            background: linear-gradient(135deg, #2c2c2e, #007aff);
+        }
+        
+        .style-option.opt5 {
+            background: linear-gradient(135deg, #a855f7, #ec4899);
+        }
+        
+        .toggle-switcher {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.9);
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 10px;
+            cursor: pointer;
+            z-index: 10001;
+            font-weight: 600;
+            font-size: 14px;
+        }
+        
+        .style-switcher.collapsed {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <!-- Toggle Button -->
+    <button class="toggle-switcher" onclick="toggleSwitcher()">🎨 UI Options</button>
+    
+    <!-- Style Switcher Panel -->
+    <div class="style-switcher">
+        <h3>Choose UI Style</h3>
+        <button class="style-option active" onclick="switchStyle('option1_glassmorphic.css', this)">
+            1. Glassmorphic Modern
+        </button>
+        <button class="style-option opt2" onclick="switchStyle('option2_cyberpunk.css', this)">
+            2. Cyberpunk Brutalist
+        </button>
+        <button class="style-option opt3" onclick="switchStyle('option3_minimalist_zen.css', this)">
+            3. Minimalist Zen
+        </button>
+        <button class="style-option opt4" onclick="switchStyle('option4_dark_neumorphic.css', this)">
+            4. Dark Neumorphic
+        </button>
+        <button class="style-option opt5" onclick="switchStyle('option5_gradient_wave.css', this)">
+            5. Gradient Wave
+        </button>
+    </div>
+
+    <!-- Demo Content -->
+    <div class="container">
+        <!-- Navbar -->
+        <nav class="navbar">
+            <div class="navbar-container">
+                <div class="navbar-logo">
+                    <span>soundara</span>
+                </div>
+                <div class="navbar-links">
+                    <a href="#" class="active">Home</a>
+                    <a href="#">My Library</a>
+                    <a href="#">Pricing</a>
+                    <a href="#">About</a>
+                    <a href="#">Contact</a>
+                </div>
+                <div class="navbar-user">
+                    <div class="user-avatar">TG</div>
+                    <button class="btn btn-ghost">Sign Out</button>
+                </div>
+            </div>
+        </nav>
+
+        <!-- Hero Section -->
+        <div class="hero">
+            <h1 class="hero-title">Transform Your Music Into <span>Brain-Enhancing</span> Frequencies</h1>
+            <p class="hero-subtitle">Upload any song and apply scientifically-proven binaural beats for focus, creativity, meditation, and deep sleep.</p>
+            <button class="btn btn-primary"><span>Start Free</span></button>
+        </div>
+
+        <!-- Frequency Grid -->
+        <div class="frequency-grid">
+            <div class="frequency-card">
+                <div class="frequency-icon">🧠</div>
+                <div class="frequency-name">Gamma</div>
+                <div class="frequency-hz">30-100 Hz</div>
+                <div class="frequency-desc">High-level cognitive functioning and peak mental performance</div>
+            </div>
+
+            <div class="frequency-card">
+                <div class="frequency-icon">✨</div>
+                <div class="frequency-name">Alpha</div>
+                <div class="frequency-hz">8-12 Hz</div>
+                <div class="frequency-desc">Relaxed focus, creativity, and calm awareness</div>
+            </div>
+
+            <div class="frequency-card">
+                <div class="frequency-icon">⚡</div>
+                <div class="frequency-name">Beta</div>
+                <div class="frequency-hz">12-30 Hz</div>
+                <div class="frequency-desc">Alertness, problem-solving, and active thinking</div>
+            </div>
+
+            <div class="frequency-card">
+                <div class="frequency-icon">🧘</div>
+                <div class="frequency-name">Theta</div>
+                <div class="frequency-hz">4-8 Hz</div>
+                <div class="frequency-desc">Deep meditation, intuition, and creative insights</div>
+            </div>
+
+            <div class="frequency-card">
+                <div class="frequency-icon">😴</div>
+                <div class="frequency-name">Delta</div>
+                <div class="frequency-hz">0.5-4 Hz</div>
+                <div class="frequency-desc">Deep sleep, healing, and physical recovery</div>
+            </div>
+
+            <div class="frequency-card">
+                <div class="frequency-icon">🌍</div>
+                <div class="frequency-name">Schumann</div>
+                <div class="frequency-hz">7.83 Hz</div>
+                <div class="frequency-desc">Earth's natural frequency for grounding and balance</div>
+            </div>
+        </div>
+
+        <!-- Upload Section -->
+        <div class="upload-section">
+            <h2 class="upload-title">Upload Your Track</h2>
+            <p class="upload-subtitle">Transform any audio file into brain-enhancing binaural beats</p>
+            
+            <div class="input-group">
+                <label class="input-label">Track Name</label>
+                <input type="text" class="input" placeholder="Enter track name...">
+            </div>
+
+            <div class="input-group">
+                <label class="input-label">Select Frequency</label>
+                <select class="input">
+                    <option>Alpha - Relaxed Focus</option>
+                    <option>Beta - Active Thinking</option>
+                    <option>Gamma - High Performance</option>
+                    <option>Theta - Deep Meditation</option>
+                    <option>Delta - Deep Sleep</option>
+                    <option>Schumann - Natural Resonance</option>
+                </select>
+            </div>
+
+            <div class="input-group">
+                <label class="input-label">YouTube URL (Optional)</label>
+                <input type="text" class="input" placeholder="https://youtube.com/watch?v=...">
+            </div>
+
+            <div class="file-upload">
+                <div class="file-upload-icon">📁</div>
+                <p class="file-upload-text">Click to upload or drag and drop</p>
+                <p class="file-upload-text" style="opacity: 0.6; font-size: 12px;">WAV, MP3, FLAC, OGG (Max 50MB)</p>
+            </div>
+
+            <button class="btn btn-primary" style="margin-top: 24px;"><span>Process Track</span></button>
+        </div>
+    </div>
+
+    <!-- Audio Player Bar -->
+    <div class="audio-player-bar">
+        <div class="player-track-info">
+            <div class="player-album-art"></div>
+            <div class="player-track-details">
+                <div class="player-track-name">Peaceful Piano (Alpha Waves)</div>
+                <div class="player-track-mode">8-12 Hz • Relaxed Focus</div>
+            </div>
+        </div>
+
+        <div class="player-controls">
+            <button class="player-btn">⏮</button>
+            <button class="player-btn player-btn-play">▶</button>
+            <button class="player-btn">⏭</button>
+        </div>
+
+        <div class="progress-container">
+            <div class="progress-bar">
+                <div class="progress-fill" style="width: 35%;"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function switchStyle(cssFile, button) {
+            // Update stylesheet
+            document.getElementById('active-style').setAttribute('href', cssFile);
+            
+            // Update active button
+            document.querySelectorAll('.style-option').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            button.classList.add('active');
+            
+            // Optional: Save preference to localStorage
+            localStorage.setItem('preferredStyle', cssFile);
+        }
+
+        function toggleSwitcher() {
+            const switcher = document.querySelector('.style-switcher');
+            const button = document.querySelector('.toggle-switcher');
+            
+            if (switcher.classList.contains('collapsed')) {
+                switcher.classList.remove('collapsed');
+                button.textContent = '✕ Close';
+            } else {
+                switcher.classList.add('collapsed');
+                button.textContent = '🎨 UI Options';
+            }
+        }
+
+        // Load saved preference on page load
+        window.addEventListener('DOMContentLoaded', () => {
+            const saved = localStorage.getItem('preferredStyle');
+            if (saved) {
+                document.getElementById('active-style').setAttribute('href', saved);
+                // Update active button
+                const buttons = document.querySelectorAll('.style-option');
+                buttons.forEach((btn, index) => {
+                    if (btn.onclick.toString().includes(saved)) {
+                        btn.classList.add('active');
+                    } else {
+                        btn.classList.remove('active');
+                    }
+                });
+            }
+            
+            // Start with switcher collapsed
+            setTimeout(() => {
+                document.querySelector('.style-switcher').classList.add('collapsed');
+            }, 100);
+        });
+    </script>
+</body>
+</html>
