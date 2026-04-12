@@ -1,0 +1,567 @@
+/* ============================================
+   OPTION 2: BRUTALIST CYBERPUNK
+   Bold, edgy, high-contrast aesthetic
+   ============================================ */
+
+:root {
+  /* Cyberpunk Color Palette */
+  --cyber-pink: #ff006e;
+  --cyber-blue: #00f5ff;
+  --cyber-purple: #8338ec;
+  --cyber-green: #06ffa5;
+  --cyber-yellow: #ffbe0b;
+  --bg-dark: #0a0e27;
+  --bg-darker: #050816;
+  --text-primary: #ffffff;
+  --text-neon: #00f5ff;
+  --border-neon: #ff006e;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Space Grotesk', 'Courier New', monospace;
+  background: var(--bg-dark);
+  color: var(--text-primary);
+  overflow-x: hidden;
+  line-height: 1.6;
+}
+
+/* Animated grid background */
+body::before {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-image: 
+    linear-gradient(rgba(0, 245, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 245, 255, 0.03) 1px, transparent 1px);
+  background-size: 50px 50px;
+  z-index: 0;
+  pointer-events: none;
+}
+
+/* Scanline effect */
+body::after {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: repeating-linear-gradient(
+    0deg,
+    rgba(0, 0, 0, 0.15),
+    rgba(0, 0, 0, 0.15) 1px,
+    transparent 1px,
+    transparent 2px
+  );
+  pointer-events: none;
+  z-index: 9999;
+  animation: scanline 8s linear infinite;
+}
+
+@keyframes scanline {
+  0% { transform: translateY(0); }
+  100% { transform: translateY(50px); }
+}
+
+/* Container */
+.container {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 20px;
+  position: relative;
+  z-index: 1;
+}
+
+/* Navbar - Brutalist */
+.navbar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  background: var(--bg-darker);
+  border-bottom: 4px solid var(--cyber-pink);
+  padding: 20px 40px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  z-index: 1000;
+  box-shadow: 0 0 30px rgba(255, 0, 110, 0.3);
+}
+
+.navbar-logo {
+  font-size: 32px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: -1px;
+  color: var(--text-primary);
+  text-shadow: 
+    0 0 10px var(--cyber-blue),
+    0 0 20px var(--cyber-blue),
+    0 0 30px var(--cyber-blue);
+  animation: glitch 3s infinite;
+}
+
+@keyframes glitch {
+  0%, 90%, 100% { transform: translate(0); }
+  92% { transform: translate(-2px, 2px); }
+  94% { transform: translate(2px, -2px); }
+  96% { transform: translate(-2px, -2px); }
+}
+
+.navbar-links {
+  display: flex;
+  gap: 0;
+}
+
+.navbar-links a {
+  color: var(--text-primary);
+  text-decoration: none;
+  padding: 12px 24px;
+  border: 2px solid transparent;
+  text-transform: uppercase;
+  font-weight: 700;
+  font-size: 14px;
+  letter-spacing: 1px;
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+.navbar-links a::before {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 0;
+  height: 2px;
+  background: var(--cyber-pink);
+  transition: width 0.3s ease;
+}
+
+.navbar-links a:hover::before {
+  width: 100%;
+}
+
+.navbar-links a:hover {
+  color: var(--cyber-pink);
+  text-shadow: 0 0 10px var(--cyber-pink);
+}
+
+.navbar-links a.active {
+  border: 2px solid var(--cyber-pink);
+  background: rgba(255, 0, 110, 0.1);
+  color: var(--cyber-pink);
+  box-shadow: 0 0 20px rgba(255, 0, 110, 0.3);
+}
+
+/* Buttons - Brutalist */
+.btn {
+  padding: 14px 32px;
+  border: 3px solid var(--cyber-pink);
+  background: transparent;
+  color: var(--text-primary);
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  position: relative;
+  overflow: hidden;
+  clip-path: polygon(0 0, 95% 0, 100% 20%, 100% 100%, 5% 100%, 0 80%);
+}
+
+.btn::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: var(--cyber-pink);
+  transition: left 0.3s ease;
+  z-index: -1;
+}
+
+.btn:hover::before {
+  left: 0;
+}
+
+.btn:hover {
+  color: var(--bg-dark);
+  box-shadow: 
+    0 0 20px var(--cyber-pink),
+    inset 0 0 20px var(--cyber-pink);
+  transform: translateY(-2px);
+}
+
+.btn-primary {
+  border-color: var(--cyber-blue);
+  color: var(--cyber-blue);
+}
+
+.btn-primary::before {
+  background: var(--cyber-blue);
+}
+
+/* Cards - Sharp and Angular */
+.card {
+  background: linear-gradient(135deg, rgba(10, 14, 39, 0.9) 0%, rgba(5, 8, 22, 0.9) 100%);
+  border: 3px solid var(--cyber-pink);
+  padding: 30px;
+  position: relative;
+  clip-path: polygon(0 0, 98% 0, 100% 10%, 100% 100%, 2% 100%, 0 90%);
+  box-shadow: 
+    0 0 30px rgba(255, 0, 110, 0.2),
+    inset 0 0 30px rgba(0, 245, 255, 0.05);
+}
+
+.card::before {
+  content: '';
+  position: absolute;
+  top: -2px;
+  left: -2px;
+  right: -2px;
+  bottom: -2px;
+  background: linear-gradient(45deg, var(--cyber-pink), var(--cyber-blue), var(--cyber-purple));
+  z-index: -1;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  clip-path: polygon(0 0, 98% 0, 100% 10%, 100% 100%, 2% 100%, 0 90%);
+}
+
+.card:hover::before {
+  opacity: 0.3;
+}
+
+/* Frequency Grid - Aggressive Layout */
+.frequency-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 30px;
+  margin-top: 120px;
+}
+
+.frequency-card {
+  background: var(--bg-darker);
+  border: 3px solid var(--cyber-blue);
+  padding: 30px;
+  cursor: pointer;
+  position: relative;
+  transition: all 0.3s ease;
+  clip-path: polygon(5% 0, 100% 0, 100% 80%, 95% 100%, 0 100%, 0 20%);
+}
+
+.frequency-card::after {
+  content: '>';
+  position: absolute;
+  top: 10px;
+  right: 15px;
+  font-size: 24px;
+  color: var(--cyber-pink);
+  opacity: 0;
+  transition: all 0.3s ease;
+}
+
+.frequency-card:hover {
+  border-color: var(--cyber-pink);
+  transform: translateX(10px);
+  box-shadow: 
+    -10px 10px 0 var(--cyber-pink),
+    0 0 40px rgba(255, 0, 110, 0.4);
+}
+
+.frequency-card:hover::after {
+  opacity: 1;
+  right: 20px;
+}
+
+.frequency-name {
+  font-size: 28px;
+  font-weight: 900;
+  margin-bottom: 10px;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  color: var(--cyber-blue);
+  text-shadow: 0 0 10px var(--cyber-blue);
+}
+
+.frequency-hz {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--cyber-pink);
+  font-family: 'Courier New', monospace;
+  margin-bottom: 12px;
+}
+
+.frequency-desc {
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+/* Upload Section - Command Terminal Style */
+.upload-section {
+  background: var(--bg-darker);
+  border: 4px solid var(--cyber-green);
+  padding: 40px;
+  margin-top: 120px;
+  position: relative;
+  font-family: 'Courier New', monospace;
+  clip-path: polygon(0 0, 100% 0, 100% 95%, 98% 100%, 0 100%);
+  box-shadow: 0 0 50px rgba(6, 255, 165, 0.3);
+}
+
+.upload-section::before {
+  content: '> UPLOAD_TRACK.exe';
+  position: absolute;
+  top: 15px;
+  left: 20px;
+  color: var(--cyber-green);
+  font-weight: 700;
+  font-size: 12px;
+  text-shadow: 0 0 10px var(--cyber-green);
+}
+
+.upload-title {
+  font-size: 32px;
+  font-weight: 900;
+  margin-bottom: 10px;
+  margin-top: 30px;
+  text-transform: uppercase;
+  color: var(--cyber-green);
+  text-shadow: 0 0 20px var(--cyber-green);
+}
+
+/* Input Fields - Terminal Style */
+.input-label {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--cyber-blue);
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  font-family: 'Courier New', monospace;
+}
+
+.input-label::before {
+  content: '>';
+  margin-right: 8px;
+  color: var(--cyber-pink);
+}
+
+.input {
+  width: 100%;
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.5);
+  border: 2px solid var(--cyber-blue);
+  color: var(--text-primary);
+  font-size: 16px;
+  font-family: 'Courier New', monospace;
+  transition: all 0.2s ease;
+}
+
+.input:focus {
+  outline: none;
+  border-color: var(--cyber-pink);
+  box-shadow: 
+    0 0 20px rgba(255, 0, 110, 0.3),
+    inset 0 0 10px rgba(0, 245, 255, 0.1);
+  background: rgba(0, 0, 0, 0.8);
+}
+
+/* File Upload - Data Transfer Style */
+.file-upload {
+  border: 3px dashed var(--cyber-yellow);
+  padding: 50px;
+  text-align: center;
+  cursor: pointer;
+  background: rgba(255, 190, 11, 0.05);
+  position: relative;
+  clip-path: polygon(0 5%, 5% 0, 95% 0, 100% 5%, 100% 95%, 95% 100%, 5% 100%, 0 95%);
+  transition: all 0.3s ease;
+}
+
+.file-upload:hover {
+  background: rgba(255, 190, 11, 0.15);
+  box-shadow: 
+    0 0 30px rgba(255, 190, 11, 0.3),
+    inset 0 0 30px rgba(255, 190, 11, 0.1);
+}
+
+.file-upload::before {
+  content: 'DROP FILE HERE';
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  color: var(--cyber-yellow);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 2px;
+}
+
+/* Audio Player - HUD Style */
+.audio-player-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 90px;
+  background: var(--bg-darker);
+  border-top: 4px solid var(--cyber-pink);
+  z-index: 999;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 40px;
+  box-shadow: 0 -10px 50px rgba(255, 0, 110, 0.4);
+}
+
+.player-track-info {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.player-track-name {
+  font-size: 18px;
+  font-weight: 900;
+  color: var(--cyber-blue);
+  text-transform: uppercase;
+  text-shadow: 0 0 10px var(--cyber-blue);
+}
+
+.player-track-mode {
+  font-size: 12px;
+  color: var(--cyber-pink);
+  font-family: 'Courier New', monospace;
+}
+
+.player-controls {
+  display: flex;
+  gap: 20px;
+}
+
+.player-btn {
+  width: 50px;
+  height: 50px;
+  border: 3px solid var(--cyber-pink);
+  background: transparent;
+  color: var(--cyber-pink);
+  cursor: pointer;
+  font-size: 20px;
+  transition: all 0.2s ease;
+  clip-path: polygon(20% 0, 80% 0, 100% 20%, 100% 80%, 80% 100%, 20% 100%, 0 80%, 0 20%);
+}
+
+.player-btn:hover {
+  background: var(--cyber-pink);
+  color: var(--bg-dark);
+  box-shadow: 0 0 30px var(--cyber-pink);
+  transform: scale(1.1);
+}
+
+/* Wave Bars Visualizer */
+.wave-bars {
+  display: flex;
+  gap: 4px;
+  align-items: flex-end;
+  height: 40px;
+}
+
+.wave-bar {
+  width: 4px;
+  background: linear-gradient(to top, var(--cyber-pink), var(--cyber-blue));
+  animation: wave 1s ease-in-out infinite;
+}
+
+.wave-bar:nth-child(1) { animation-delay: 0s; }
+.wave-bar:nth-child(2) { animation-delay: 0.1s; }
+.wave-bar:nth-child(3) { animation-delay: 0.2s; }
+.wave-bar:nth-child(4) { animation-delay: 0.3s; }
+.wave-bar:nth-child(5) { animation-delay: 0.4s; }
+
+@keyframes wave {
+  0%, 100% { height: 10px; }
+  50% { height: 40px; }
+}
+
+/* Glitch Text Effect */
+.glitch {
+  position: relative;
+  animation: glitch-skew 1s infinite;
+}
+
+.glitch::before,
+.glitch::after {
+  content: attr(data-text);
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.glitch::before {
+  left: 2px;
+  text-shadow: -2px 0 var(--cyber-pink);
+  animation: glitch-anim-1 2s infinite linear alternate-reverse;
+}
+
+.glitch::after {
+  left: -2px;
+  text-shadow: 2px 0 var(--cyber-blue);
+  animation: glitch-anim-2 3s infinite linear alternate-reverse;
+}
+
+@keyframes glitch-anim-1 {
+  0% { clip-path: inset(50% 0 30% 0); }
+  20% { clip-path: inset(30% 0 50% 0); }
+  40% { clip-path: inset(10% 0 60% 0); }
+  60% { clip-path: inset(70% 0 10% 0); }
+  80% { clip-path: inset(20% 0 40% 0); }
+  100% { clip-path: inset(40% 0 20% 0); }
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .navbar {
+    flex-direction: column;
+    padding: 15px 20px;
+  }
+  
+  .navbar-links {
+    flex-wrap: wrap;
+  }
+  
+  .frequency-grid {
+    grid-template-columns: 1fr;
+    margin-top: 180px;
+  }
+}
+
+/* Scrollbar - Neon */
+::-webkit-scrollbar {
+  width: 12px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-darker);
+  border-left: 2px solid var(--cyber-pink);
+}
+
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, var(--cyber-pink), var(--cyber-blue));
+  border-radius: 0;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  box-shadow: 0 0 20px var(--cyber-pink);
+}
