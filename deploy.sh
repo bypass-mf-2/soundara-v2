@@ -74,7 +74,7 @@ log "Installing Python requirements"
 
 log "Installing frontend dependencies and building"
 cd "$FRONTEND_DIR"
-if [[ -f package-lock.json ]]; then npm ci; else npm install; fi
+npm install
 npm run build
 
 log "Fixing ownership to $APP_USER"
