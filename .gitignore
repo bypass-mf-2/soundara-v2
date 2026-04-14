@@ -8,10 +8,13 @@ frontend/build/
 backend/build/
 
 # Environment variables
-.env
+# Ignore backend secrets at the project root
+/.env
+# Ignore local overrides everywhere
 .env.local
-.env.development
-.env.production
+# Commit frontend build-time env files (VITE_API_URL etc., no secrets)
+!frontend/.env.development
+!frontend/.env.production
 
 # Logs
 npm-debug.log*

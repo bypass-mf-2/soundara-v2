@@ -27,7 +27,7 @@ export default function Library({ user }) {
 
   useEffect(() => {
     if(!USER_ID) return;
-    fetch(`http://localhost:8000/user_library/${USER_ID}`)
+    fetch(`${import.meta.env.VITE_API_URL}/user_library/${USER_ID}`)
       .then(res => res.json())
       .then(data => setTracks(data))
       .catch(err => console.error("Failed to fetch library:", err));
