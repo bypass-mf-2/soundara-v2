@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, Link } from "react-router-dom";
 import Home from "./pages/Home.jsx";
 import About from "./pages/About.jsx";
 import Contact from "./pages/Contact.jsx";
@@ -12,6 +12,7 @@ import Terms from "./pages/Terms.jsx";
 import Privacy from "./pages/Privacy.jsx";
 import DMCA from "./pages/DMCA.jsx";
 import AudioPlayer from "./components/AudioPlayer.jsx";
+import logo from "./assets/soundara.jpg";
 
 import { usePlayer } from "./PlayerContext.jsx";
 import { GoogleLogin, googleLogout } from "@react-oauth/google";
@@ -22,17 +23,14 @@ export default function App() {
   const [user, setUser] = useState(null);
   const [library, setLibrary] = useState([]);
 
-  // Pull playlist info from PlayerContext
   const {
     playlists,
     currentPlaylist,
     addToPlaylist: addTrackToContext,
   } = usePlayer();
 
-  // Get current playlist tracks
   const playlistTracks = playlists[currentPlaylist] || [];
 
-  // Helper to check if user bought a track
   const userHasBought = (track) => {
     if (!user) return false;
     return track.isPurchased || false;
@@ -57,53 +55,56 @@ export default function App() {
     localStorage.removeItem("user");
   };
 
-// Wrap context addToPlaylist to include user check + tracking
-const addToPlaylist = (track) => {
-  if (!user) {
-    console.warn("User not loaded yet. Cannot add to playlist.");
-    return;
-  }
+  const addToPlaylist = (track) => {
+    if (!user) {
+      console.warn("User not loaded yet. Cannot add to playlist.");
+      return;
+    }
+    addTrackToContext(track);
+    trackEvent({
+      type: "add_to_playlist",
+      user: user.id,
+      name: user.name,
+      email: user.email,
+      picture: user.picture,
+      id: user.id,
+      track: track.track,
+    });
+  };
 
-  // Add track to context playlist (PlayerContext handles duplicates and localStorage)
-  addTrackToContext(track);
-
-  // Optional: track event
-  trackEvent({
-    type: "add_to_playlist",
-    user: user.id,
-    name: user.name,
-    email: user.email,
-    picture: user.picture,
-    id: user.id,
-    track: track.track,
-  });
-};
-
-  // Force login if user not loaded
   if (!user) {
     return (
-      <div style={{ padding: "20px", textAlign: "center" }}>
-        <h2>Login to continue</h2>
-        <GoogleLogin
-          onSuccess={(credentialResponse) => {
-            const profile = jwtDecode(credentialResponse.credential);
-            const userData = {
-              name: profile.name,
-              email: profile.email,
-              picture: profile.picture,
-              id: profile.sub,
-            };
-            setUser(userData);
-            localStorage.setItem("user", JSON.stringify(userData));
-            trackEvent({
-              type: "login",
-              user: profile.sub,
-              name: profile.name,
-              picture: profile.picture,
-            });
-          }}
-          onError={() => console.log("Login Failed")}
-        />
+      <div className="login-gate">
+        <div className="login-gate-card">
+          <img src={logo} alt="Soundara" className="login-gate-logo" />
+          <h1 className="login-gate-title">soundara</h1>
+          <p className="login-gate-subtitle">
+            Transform your music into brain-enhancing frequencies.
+            Sign in to continue.
+          </p>
+          <div className="login-gate-btns">
+            <GoogleLogin
+              onSuccess={(credentialResponse) => {
+                const profile = jwtDecode(credentialResponse.credential);
+                const userData = {
+                  name: profile.name,
+                  email: profile.email,
+                  picture: profile.picture,
+                  id: profile.sub,
+                };
+                setUser(userData);
+                localStorage.setItem("user", JSON.stringify(userData));
+                trackEvent({
+                  type: "login",
+                  user: profile.sub,
+                  name: profile.name,
+                  picture: profile.picture,
+                });
+              }}
+              onError={() => console.log("Login Failed")}
+            />
+          </div>
+        </div>
       </div>
     );
   }
@@ -111,7 +112,6 @@ const addToPlaylist = (track) => {
   return (
     <BrowserRouter>
       <Navbar user={user} onLogout={handleLogout} />
-      {/* Audio player now gets tracks from PlayerContext */}
       <Routes>
         <Route
           path="/"
@@ -150,6 +150,14 @@ const addToPlaylist = (track) => {
         <Route path="/dmca" element={<DMCA />} />
         <Route path="*" element={<Navigate to="/" />} />
       </Routes>
+      <footer className="zen-footer">
+        <Link to="/terms">Terms</Link>
+        <Link to="/privacy">Privacy</Link>
+        <Link to="/dmca">DMCA</Link>
+        <div style={{ marginTop: "12px", fontSize: "11px", opacity: 0.7 }}>
+          © {new Date().getFullYear()} Soundara
+        </div>
+      </footer>
       <AudioPlayer playlist={playlistTracks} userHasBought={userHasBought} />
     </BrowserRouter>
   );

@@ -1,4 +1,3 @@
-// AudioPlayer.jsx
 import { useEffect, useRef, useState} from "react";
 import { usePlayer } from "../PlayerContext.jsx";
 import { trackEvent } from "../track_event.js";
@@ -27,7 +26,7 @@ export default function AudioPlayer() {
   const track = playlists[currentPlaylist]?.[currentIndex] || null;
   const audioUrl = track
     ? `${import.meta.env.VITE_API_URL}/library/file/${track.filename_full}`
-  : "";
+    : "";
 
   useEffect(() => {
     const audio = audioRef.current;
@@ -60,7 +59,6 @@ export default function AudioPlayer() {
     }
   }, [audioUrl, isPlaying, track]);
 
-  // Update progress as audio plays
   const handleTimeUpdate = () => {
     const audio = audioRef.current;
     if (!audio) return;
@@ -73,7 +71,6 @@ export default function AudioPlayer() {
     setDuration(audio.duration);
   };
 
-  // Seek when user drags the slider
   const handleSeek = (e) => {
     const audio = audioRef.current;
     if (!audio) return;
@@ -83,7 +80,6 @@ export default function AudioPlayer() {
 
   const handleEnded = () => nextTrack();
 
-  // Format seconds → m:ss
   const formatTime = (secs) => {
     if (!secs || isNaN(secs)) return "0:00";
     const m = Math.floor(secs / 60);
@@ -93,38 +89,68 @@ export default function AudioPlayer() {
 
   if (!track) return null;
 
+  const progressPct = duration ? (progress / duration) * 100 : 0;
+  const playlistLabel = currentPlaylist === "__library__" ? "Library" : currentPlaylist;
+
   return (
     <div className="audio-player-bar">
-      <div className="track-info">
-        {track.name} {track.mode && `(${track.mode})`} {track.artist && `- ${track.artist}`}
+      <div className="player-track-info">
+        <div className="player-track-name">{track.name}</div>
+        <div className="player-track-mode">
+          {track.mode}{playlistLabel && ` • ${playlistLabel}`}
+        </div>
       </div>
 
-      <div className="controls">
-        <button onClick={prevTrack}>⏮</button>
-        <button onClick={() => (isPlaying ? pauseTrack() : playTrack(currentIndex))}>
-          {isPlaying ? "⏸" : "▶️"}
+      <div className="player-controls">
+        <button className="player-btn" onClick={prevTrack} title="Previous">⏮</button>
+        <button
+          className={`player-btn ${isPlaying ? "playing" : ""}`}
+          onClick={() => (isPlaying ? pauseTrack() : playTrack(currentIndex))}
+          title={isPlaying ? "Pause" : "Play"}
+        >
+          {isPlaying ? "⏸" : "▶"}
         </button>
-        <button onClick={nextTrack}>⏭</button>
-        <button onClick={toggleShuffle} style={{ opacity: shuffle ? 1 : 0.4 }}>🔀</button>
-        <button onClick={toggleRepeat} style={{ opacity: repeat ? 1 : 0.4 }}>🔁</button>
-              {/* Playlist name display */}
-        <span style={{ fontSize: "12px", opacity: 0.6 }}>
-          {currentPlaylist === "__library__" ? "Library" : currentPlaylist}
-        </span>
+        <button className="player-btn" onClick={nextTrack} title="Next">⏭</button>
+        <button
+          className="player-btn"
+          onClick={toggleShuffle}
+          style={{ opacity: shuffle ? 1 : 0.4 }}
+          title="Shuffle"
+        >🔀</button>
+        <button
+          className="player-btn"
+          onClick={toggleRepeat}
+          style={{ opacity: repeat ? 1 : 0.4 }}
+          title="Repeat"
+        >🔁</button>
       </div>
 
-      <div className="seek-bar" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-        <span>{formatTime(progress)}</span>
-        <input
-          type="range"
-          min={0}
-          max={duration || 0}
-          step={0.1}
-          value={progress}
-          onChange={handleSeek}
-          style={{ flex: 1 }}
-        />
-        <span>{formatTime(duration)}</span>
+      <div style={{ flex: 2, display: "flex", alignItems: "center", gap: "12px", minWidth: 0 }}>
+        <span style={{ fontSize: "11px", color: "var(--zen-earth)", minWidth: "36px" }}>
+          {formatTime(progress)}
+        </span>
+        <div className="progress-bar" style={{ flex: 1, position: "relative" }}>
+          <div className="progress-fill" style={{ width: `${progressPct}%` }} />
+          <input
+            type="range"
+            min={0}
+            max={duration || 0}
+            step={0.1}
+            value={progress}
+            onChange={handleSeek}
+            style={{
+              position: "absolute",
+              inset: 0,
+              width: "100%",
+              height: "100%",
+              opacity: 0,
+              cursor: "pointer",
+            }}
+          />
+        </div>
+        <span style={{ fontSize: "11px", color: "var(--zen-earth)", minWidth: "36px" }}>
+          {formatTime(duration)}
+        </span>
       </div>
 
       <audio

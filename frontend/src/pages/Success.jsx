@@ -7,27 +7,22 @@ export default function Success() {
 
   const user = params.get("user");
   const trackFile = params.get("track");
-  const trackName = params.get("track_name"); // optional, if you send it
-  const subscription = params.get("subscription"); // "limited" or "unlimited"
+  const trackName = params.get("track_name");
+  const subscription = params.get("subscription");
 
   useEffect(() => {
     if (!user) return;
 
     const updateLibrary = async () => {
       try {
-        // 1️⃣ Add track if applicable
         if (trackFile && trackName) {
           await fetch(`${import.meta.env.VITE_API_URL}/user_library/${user}/add`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              file: trackFile,
-              name: trackName,
-            }),
+            body: JSON.stringify({ file: trackFile, name: trackName }),
           });
         }
 
-        // 2️⃣ Activate subscription if applicable
         if (subscription) {
           await fetch(`${import.meta.env.VITE_API_URL}/user_subscriptions/${user}/activate`, {
             method: "POST",
@@ -37,7 +32,7 @@ export default function Success() {
         }
 
         alert("Purchase successful!");
-        navigate("/"); // back to home so library updates
+        navigate("/");
       } catch (err) {
         console.error(err);
         alert("Something went wrong updating your library or subscription.");
@@ -48,9 +43,16 @@ export default function Success() {
   }, []);
 
   return (
-    <div style={{ padding: "40px" }}>
-      <h1>Payment Successful</h1>
-      <p>Your track or subscription has been added to your account.</p>
+    <div className="container" style={{ display: "flex", justifyContent: "center", minHeight: "60vh", alignItems: "center" }}>
+      <div className="card" style={{ textAlign: "center", maxWidth: "480px", padding: "60px 40px" }}>
+        <div style={{ fontSize: "48px", marginBottom: "16px" }}>✓</div>
+        <h1 style={{ fontSize: "32px", fontWeight: 300, marginBottom: "12px", color: "var(--zen-charcoal)" }}>
+          Payment Successful
+        </h1>
+        <p style={{ color: "var(--zen-earth)", lineHeight: 1.7 }}>
+          Your track or subscription has been added to your account.
+        </p>
+      </div>
     </div>
   );
 }
