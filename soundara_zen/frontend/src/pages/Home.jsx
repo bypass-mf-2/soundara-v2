@@ -57,7 +57,7 @@ export default function Home() {
 
   // Load library
   const loadLibrary = () => {
-    fetch("http://localhost:8000/library/")
+    fetch(`${import.meta.env.VITE_API_URL}/library/`)
       .then(res => res.json())
       .then(data => {
         const pricedData = data.map(ensurePriceCents);
@@ -90,7 +90,7 @@ const handleSubmit = async (e) => {
 
   setMessage("Processing...");
   try {
-    const res = await fetch("http://localhost:8000/process_audio/", {
+    const res = await fetch(`${import.meta.env.VITE_API_URL}/process_audio/`, {
       method: "POST",
       body: formData
     });
@@ -141,7 +141,7 @@ const handleSubmit = async (e) => {
     if(track.price_cents === undefined) 
       track.price_cents = ensurePriceCents(track).price_cents;
 
-    const res = await fetch("http://localhost:8000/create_checkout_session/", {
+    const res = await fetch(`${import.meta.env.VITE_API_URL}/create_checkout_session/`, {
       method: "POST",
       headers: {"Content-Type": "application/json"},
       body: JSON.stringify({
@@ -179,7 +179,7 @@ const handleSubmit = async (e) => {
   // Add track to user's library
   const handleAddToLibrary = async (track) => {
     try {
-      const res = await fetch(`http://localhost:8000/user_library/${USER_ID}/add`, {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/user_library/${USER_ID}/add`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(track),
@@ -236,12 +236,12 @@ const handleSubmit = async (e) => {
                     {lastProcessed.name} ({lastProcessed.mode}) - $
                     {((lastProcessed.price_cents)/100).toFixed(2)}
                   </p>
-                  <audio controls src={`http://localhost:8000/library/file/${lastProcessed.filename_preview}`} />
+                  <audio controls src={`${import.meta.env.VITE_API_URL}/library/file/${lastProcessed.filename_preview}`} />
                   <br />
                   {purchasedTracks.includes(lastProcessed.filename_full) ? (
                     // ✅ If purchased, show only Download
                     <a
-                      href={`http://localhost:8000/library/file/${lastProcessed.filename_full}`}
+                      href={`${import.meta.env.VITE_API_URL}/library/file/${lastProcessed.filename_full}`}
                       download={lastProcessed.filename_full}
                     >
                       Download
@@ -277,9 +277,9 @@ const handleSubmit = async (e) => {
                   <div key={i} style={{ border:"1px solid #ccc", marginBottom:"8px", padding:"5px" }}>
                     <p>{track.name} ({track.mode}) - Plays: {track.plays} - ${((track.price_cents  || 0)/100).toFixed(2)}</p>
                       <audio
-                        controls src={`http://localhost:8000/library/file/${track.filename_preview}?user_id=${USER_ID}`}
+                        controls src={`${import.meta.env.VITE_API_URL}/library/file/${track.filename_preview}?user_id=${USER_ID}`}
                         onPlay={() => {
-                          fetch("http://localhost:8000/track_event/", {
+                          fetch(`${import.meta.env.VITE_API_URL}/track_event/`, {
                             method: "POST",
                             headers: { "Content-Type": "application/json" },
                             body: JSON.stringify({ type: "audio_play", track: track.name })
@@ -299,7 +299,7 @@ const handleSubmit = async (e) => {
               playlist.map((track,i)=>(
                 <div key={i}>
                   <p>{track.name} ({track.mode})</p>
-                  <audio controls src={`http://localhost:8000/library/file/${track.filename_full}`} />
+                  <audio controls src={`${import.meta.env.VITE_API_URL}/library/file/${track.filename_full}`} />
                 </div>
               ))
             }

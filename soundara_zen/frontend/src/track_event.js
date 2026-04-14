@@ -1,6 +1,6 @@
 export async function trackEvent(event) {
   try {
-    const response = await fetch("http://localhost:8000/track_event/", {
+    const response = await fetch(`${import.meta.env.VITE_API_URL}/track_event/`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(event),

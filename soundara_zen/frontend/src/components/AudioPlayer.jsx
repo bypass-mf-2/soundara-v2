@@ -26,7 +26,7 @@ export default function AudioPlayer() {
 
   const track = playlists[currentPlaylist]?.[currentIndex] || null;
   const audioUrl = track
-    ? `http://localhost:8000/library/file/${track.filename_full}`
+    ? `${import.meta.env.VITE_API_URL}/library/file/${track.filename_full}`
   : "";
 
   useEffect(() => {
