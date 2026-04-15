@@ -2,10 +2,13 @@ import { Link } from "react-router-dom";
 import logo from "../assets/soundara.jpg";
 import { trackEvent } from "../track_event.js";
 
+const ADMIN_EMAIL = "trevorm.goodwill@gmail.com";
+
 export default function Navbar({ user, onLogout }) {
   const handleNavClick = (page) => {
     trackEvent({ type: "nav_click", page, user: user?.id });
   };
+  const isAdmin = user?.email === ADMIN_EMAIL;
 
   return (
     <nav className="navbar">
@@ -17,11 +20,14 @@ export default function Navbar({ user, onLogout }) {
 
         <div className="navbar-links">
           <Link to="/" onClick={() => handleNavClick("home")}>Home</Link>
-          <Link to="/library" onClick={() => handleNavClick("library")}>My Library</Link>
+          <Link to="/library" onClick={() => handleNavClick("library")}>Library</Link>
+          <Link to="/tools" onClick={() => handleNavClick("tools")}>Tools</Link>
+          <Link to="/creator" onClick={() => handleNavClick("creator")}>Creator</Link>
           <Link to="/pricing" onClick={() => handleNavClick("pricing")}>Pricing</Link>
           <Link to="/about" onClick={() => handleNavClick("about")}>About</Link>
           <Link to="/future" onClick={() => handleNavClick("future")}>Future</Link>
           <Link to="/contact" onClick={() => handleNavClick("contact")}>Contact</Link>
+          {isAdmin && <Link to="/admin" onClick={() => handleNavClick("admin")}>Admin</Link>}
         </div>
 
         {user && (

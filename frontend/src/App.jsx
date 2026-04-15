@@ -11,6 +11,9 @@ import Success from "./pages/Success.jsx";
 import Terms from "./pages/Terms.jsx";
 import Privacy from "./pages/Privacy.jsx";
 import DMCA from "./pages/DMCA.jsx";
+import MusicTools from "./pages/MusicTools.jsx";
+import CreatorDashboard from "./pages/CreatorDashboard.jsx";
+import AdminDashboard from "./pages/AdminDashboard.jsx";
 import AudioPlayer from "./components/AudioPlayer.jsx";
 import logo from "./assets/soundara.jpg";
 
@@ -144,6 +147,9 @@ export default function App() {
         <Route path="/contact" element={<Contact playlist={playlistTracks} addToPlaylist={addToPlaylist} />} />
         <Route path="/pricing" element={<Pricing playlist={playlistTracks} addToPlaylist={addToPlaylist} />} />
         <Route path="/future" element={<Future playlist={playlistTracks} addToPlaylist={addToPlaylist} />} />
+        <Route path="/tools" element={<MusicTools />} />
+        <Route path="/creator" element={<CreatorDashboard />} />
+        <Route path="/admin" element={<AdminDashboard />} />
         <Route path="/success" element={<Success />} />
         <Route path="/terms" element={<Terms />} />
         <Route path="/privacy" element={<Privacy />} />

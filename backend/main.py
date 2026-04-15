@@ -10,6 +10,8 @@ import json
 import requests
 import stripe
 import time
+import uuid
+import hmac
 
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -131,11 +133,22 @@ SUBS_FILE = os.path.join(BASE_DIR, "user_subscriptions.json")
 FREE_USERS_FILE = os.path.join(BASE_DIR, "free_users.json")
 LOGS_DIR = os.path.join(BASE_DIR, "logs")
 
+# Community / Creator
+COMMUNITY_FILE = os.path.join(BASE_DIR, "community_uploads.json")
+COMMUNITY_FOLDER = os.path.join(BASE_DIR, "community_library")
+CREATOR_ACCOUNTS_FILE = os.path.join(BASE_DIR, "creator_accounts.json")
+VALID_GENRES = ["ambient", "electronic", "lo-fi", "classical", "meditation", "nature", "hip-hop", "rock", "pop", "other"]
+
+# Admin
+ADMIN_EMAIL = "trevorm.goodwill@gmail.com"
+ADMIN_API_TOKEN = os.getenv("ADMIN_API_TOKEN")
+
 stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
 MIN_PRICE_CENTS = 170
 
 # Create necessary directories
 os.makedirs(LIBRARY_FOLDER, exist_ok=True)
+os.makedirs(COMMUNITY_FOLDER, exist_ok=True)
 os.makedirs(LOGS_DIR, exist_ok=True)
 
 # Initialize JSON files
@@ -836,31 +849,374 @@ async def stripe_webhook(request: Request):
     return await handle_stripe_webhook(request)
 
 
+# --------------------
+# Admin authentication
+# --------------------
+def _require_admin(request: Request):
+    """Constant-time check of the X-Admin-Token header against the env token."""
+    if not ADMIN_API_TOKEN:
+        raise HTTPException(status_code=503, detail="Admin API not configured")
+    provided = request.headers.get("x-admin-token", "")
+    if not hmac.compare_digest(provided, ADMIN_API_TOKEN):
+        raise HTTPException(status_code=403, detail="Not authorized")
+
+
 @app.get("/admin/stats")
-async def get_stats(admin_user = Depends(verify_admin)):
-    """Get platform statistics (admin only)"""
+async def get_admin_stats(request: Request):
+    """Get full platform statistics (admin only)."""
+    _require_admin(request)
     try:
         with open(LIBRARY_FILE, "r") as f:
             library = json.load(f)
-        
         with open(USER_LIBRARY_FILE, "r") as f:
             user_library = json.load(f)
-        
         with open(TRACK_FILE, "r") as f:
             events = json.load(f)
-        
+        with open(SUBS_FILE, "r") as f:
+            subs = json.load(f)
+
         total_plays = sum(track.get("plays", 0) for track in library)
-        total_users = len(user_library)
-        total_tracks = len(library)
-        
+
+        event_types = {}
+        unique_visitors = set()
+        daily_events = {}
+        for ev in events:
+            t = ev.get("type", "unknown")
+            event_types[t] = event_types.get(t, 0) + 1
+            if ev.get("id") or ev.get("user"):
+                unique_visitors.add(ev.get("id") or ev.get("user"))
+            date = ev.get("timestamp", "")[:10]
+            if date:
+                daily_events[date] = daily_events.get(date, 0) + 1
+
+        recent_events = events[-50:][::-1]
+
+        community_tracks = []
+        if os.path.exists(COMMUNITY_FILE):
+            with open(COMMUNITY_FILE, "r") as f:
+                community_tracks = json.load(f)
+        pending_uploads = [t for t in community_tracks if t.get("status") == "pending"]
+
         return {
-            "total_tracks": total_tracks,
-            "total_users": total_users,
+            "total_tracks": len(library),
+            "total_users": len(user_library),
             "total_plays": total_plays,
-            "total_events": len(events)
+            "total_events": len(events),
+            "unique_visitors": len(unique_visitors),
+            "active_subscriptions": len(subs),
+            "event_breakdown": event_types,
+            "daily_events": daily_events,
+            "recent_events": recent_events,
+            "pending_uploads": pending_uploads,
+            "library": library,
+            "subscriptions": subs,
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# --------------------
+# Community uploads
+# --------------------
+@app.post("/community/upload/")
+async def community_upload(
+    request: Request,
+    file: UploadFile = File(...),
+    track_name: str = Form(...),
+    artist_name: str = Form(...),
+    genre: str = Form(...),
+    description: str = Form(""),
+    user_id: str = Form(...),
+):
+    """Upload original content for community sharing (pending moderation)."""
+    track_name = validate_track_name(track_name)
+    user_id = validate_user_id(user_id)
+    genre = genre.lower().strip()
+    if genre not in VALID_GENRES:
+        raise HTTPException(status_code=400, detail=f"Invalid genre. Must be one of: {', '.join(VALID_GENRES)}")
+    description = description[:500].strip()
+
+    validate_file_extension(file.filename)
+    tmp_path = os.path.join(
+        BASE_DIR,
+        f"temp_community_{uuid.uuid4().hex}_{sanitize_filename(file.filename)}",
+    )
+    try:
+        with open(tmp_path, "wb") as f:
+            content = await file.read()
+            f.write(content)
+        validate_file_size(tmp_path)
+        validate_audio(tmp_path)
+
+        track_id = str(uuid.uuid4())
+        safe_name = re.sub(r"[^\w\-]", "_", track_name)
+        timestamp_str = datetime.now().strftime('%Y%m%d%H%M%S')
+        community_filename = f"community_{safe_name}_{timestamp_str}.wav"
+        community_path = os.path.join(COMMUNITY_FOLDER, community_filename)
+
+        data, sr = sf.read(tmp_path)
+        sf.write(community_path, data, sr)
+
+        preview_filename = f"community_preview_{safe_name}_{timestamp_str}.wav"
+        preview_path = os.path.join(COMMUNITY_FOLDER, preview_filename)
+        create_preview(community_path, preview_path, seconds=7)
+
+        if os.path.exists(COMMUNITY_FILE):
+            with open(COMMUNITY_FILE, "r") as f:
+                uploads = json.load(f)
+        else:
+            uploads = []
+
+        entry = {
+            "id": track_id,
+            "name": track_name,
+            "artist": artist_name[:100],
+            "artist_id": user_id,
+            "genre": genre,
+            "description": description,
+            "filename": community_filename,
+            "filename_preview": preview_filename,
+            "size_bytes": os.path.getsize(community_path),
+            "timestamp": datetime.now().isoformat(),
+            "plays": 0,
+            "status": "pending",
+            "is_binaural": False,
+        }
+        uploads.append(entry)
+        with open(COMMUNITY_FILE, "w") as f:
+            json.dump(uploads, f, indent=2)
+
+        return {"status": "success", "track_id": track_id, "message": "Track uploaded and pending review"}
+    finally:
+        if os.path.exists(tmp_path):
+            os.remove(tmp_path)
+
+
+@app.get("/community/")
+async def get_community_tracks():
+    """List approved community tracks."""
+    if not os.path.exists(COMMUNITY_FILE):
+        return []
+    with open(COMMUNITY_FILE, "r") as f:
+        uploads = json.load(f)
+    return [t for t in uploads if t.get("status") == "approved"]
+
+
+@app.get("/community/all/{user_id}")
+async def get_user_community_tracks(user_id: str):
+    """Get all tracks uploaded by a specific user (any status)."""
+    user_id = validate_user_id(user_id)
+    if not os.path.exists(COMMUNITY_FILE):
+        return []
+    with open(COMMUNITY_FILE, "r") as f:
+        uploads = json.load(f)
+    return [t for t in uploads if t.get("artist_id") == user_id]
+
+
+@app.get("/community/file/{filename}")
+async def serve_community_file(filename: str):
+    """Serve a community audio file."""
+    safe = sanitize_filename(filename)
+    path = os.path.join(COMMUNITY_FOLDER, safe)
+    if not os.path.exists(path):
+        raise HTTPException(status_code=404, detail="File not found")
+    return FileResponse(path, media_type="audio/wav", filename=safe)
+
+
+@app.post("/community/moderate/{track_id}")
+async def moderate_community_track(track_id: str, request: Request):
+    """Admin approve/reject community track."""
+    _require_admin(request)
+    body = await request.json()
+    action = body.get("action", "").lower()
+    if action not in ("approved", "rejected"):
+        raise HTTPException(status_code=400, detail="Action must be 'approved' or 'rejected'")
+
+    if not os.path.exists(COMMUNITY_FILE):
+        raise HTTPException(status_code=404, detail="No community uploads")
+    with open(COMMUNITY_FILE, "r") as f:
+        uploads = json.load(f)
+
+    found = False
+    for track in uploads:
+        if track["id"] == track_id:
+            track["status"] = action
+            found = True
+            break
+    if not found:
+        raise HTTPException(status_code=404, detail="Track not found")
+
+    with open(COMMUNITY_FILE, "w") as f:
+        json.dump(uploads, f, indent=2)
+
+    return {"status": "success", "track_id": track_id, "action": action}
+
+
+# --------------------
+# Creator (Stripe Connect)
+# --------------------
+@app.post("/creator/onboard")
+async def creator_onboard(request: Request):
+    """Create a Stripe Connect Express account and onboarding link."""
+    body = await request.json()
+    user_id = validate_user_id(body.get("user_id", ""))
+    user_email = body.get("email", "")
+
+    try:
+        account = stripe.Account.create(
+            type="express",
+            email=user_email,
+            capabilities={"transfers": {"requested": True}},
+        )
+
+        if os.path.exists(CREATOR_ACCOUNTS_FILE):
+            with open(CREATOR_ACCOUNTS_FILE, "r") as f:
+                accounts = json.load(f)
+        else:
+            accounts = {}
+
+        accounts[user_id] = {
+            "stripe_account_id": account.id,
+            "onboarded": False,
+            "name": body.get("name", ""),
+            "email": user_email,
+        }
+        with open(CREATOR_ACCOUNTS_FILE, "w") as f:
+            json.dump(accounts, f, indent=2)
+
+        base_url = os.getenv("FRONTEND_URL", "http://localhost:5173")
+        account_link = stripe.AccountLink.create(
+            account=account.id,
+            refresh_url=f"{base_url}/creator",
+            return_url=f"{base_url}/creator",
+            type="account_onboarding",
+        )
+        return {"status": "success", "url": account_link.url}
+    except stripe.error.StripeError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.get("/creator/onboard/status/{user_id}")
+async def creator_onboard_status(user_id: str):
+    """Check if creator has completed Stripe Connect onboarding."""
+    user_id = validate_user_id(user_id)
+    if not os.path.exists(CREATOR_ACCOUNTS_FILE):
+        return {"onboarded": False, "has_account": False}
+    with open(CREATOR_ACCOUNTS_FILE, "r") as f:
+        accounts = json.load(f)
+
+    if user_id not in accounts:
+        return {"onboarded": False, "has_account": False}
+
+    account_id = accounts[user_id]["stripe_account_id"]
+    try:
+        account = stripe.Account.retrieve(account_id)
+        is_onboarded = account.charges_enabled or account.details_submitted
+        accounts[user_id]["onboarded"] = is_onboarded
+        with open(CREATOR_ACCOUNTS_FILE, "w") as f:
+            json.dump(accounts, f, indent=2)
+        return {"onboarded": is_onboarded, "has_account": True}
+    except stripe.error.StripeError:
+        return {"onboarded": False, "has_account": True}
+
+
+@app.get("/creator/dashboard/{user_id}")
+async def creator_dashboard(user_id: str):
+    """Get creator dashboard: uploaded tracks, plays, and Stripe balance."""
+    user_id = validate_user_id(user_id)
+
+    if os.path.exists(COMMUNITY_FILE):
+        with open(COMMUNITY_FILE, "r") as f:
+            uploads = json.load(f)
+        my_tracks = [t for t in uploads if t.get("artist_id") == user_id]
+    else:
+        my_tracks = []
+
+    total_plays = sum(t.get("plays", 0) for t in my_tracks)
+
+    balance_available = 0
+    balance_pending = 0
+    if os.path.exists(CREATOR_ACCOUNTS_FILE):
+        with open(CREATOR_ACCOUNTS_FILE, "r") as f:
+            accounts = json.load(f)
+        if user_id in accounts and accounts[user_id].get("onboarded"):
+            try:
+                balance = stripe.Balance.retrieve(
+                    stripe_account=accounts[user_id]["stripe_account_id"]
+                )
+                for b in balance.available:
+                    balance_available += b.amount
+                for b in balance.pending:
+                    balance_pending += b.amount
+            except stripe.error.StripeError:
+                pass
+
+    return {
+        "tracks": my_tracks,
+        "total_plays": total_plays,
+        "balance_available_cents": balance_available,
+        "balance_pending_cents": balance_pending,
+    }
+
+
+@app.post("/create_community_checkout/")
+async def create_community_checkout(request: Request):
+    """Stripe checkout for a community track with a 70/30 split to the creator."""
+    body = await request.json()
+    track_id = body.get("track_id", "")
+    user_id = validate_user_id(body.get("user_id", ""))
+
+    if not os.path.exists(COMMUNITY_FILE):
+        raise HTTPException(status_code=404, detail="Track not found")
+    with open(COMMUNITY_FILE, "r") as f:
+        uploads = json.load(f)
+
+    track = next((t for t in uploads if t["id"] == track_id and t["status"] == "approved"), None)
+    if not track:
+        raise HTTPException(status_code=404, detail="Track not found or not approved")
+
+    price_cents = calculate_price(track["size_bytes"])
+
+    creator_id = track["artist_id"]
+    if not os.path.exists(CREATOR_ACCOUNTS_FILE):
+        raise HTTPException(status_code=400, detail="Creator has not set up payments")
+    with open(CREATOR_ACCOUNTS_FILE, "r") as f:
+        accounts = json.load(f)
+
+    if creator_id not in accounts or not accounts[creator_id].get("onboarded"):
+        raise HTTPException(status_code=400, detail="Creator has not completed payment setup")
+
+    creator_stripe_id = accounts[creator_id]["stripe_account_id"]
+    application_fee = int(price_cents * 0.30)
+
+    base_url = os.getenv("FRONTEND_URL", "http://localhost:5173")
+    try:
+        session = stripe.checkout.Session.create(
+            payment_method_types=["card"],
+            line_items=[{
+                "price_data": {
+                    "currency": "usd",
+                    "product_data": {"name": f"{track['name']} by {track['artist']}"},
+                    "unit_amount": price_cents,
+                },
+                "quantity": 1,
+            }],
+            mode="payment",
+            success_url=f"{base_url}/success?track_id={track_id}&user={user_id}",
+            cancel_url=f"{base_url}/tools",
+            payment_intent_data={
+                "application_fee_amount": application_fee,
+                "transfer_data": {"destination": creator_stripe_id},
+            },
+            metadata={
+                "user_id": user_id,
+                "track_id": track_id,
+                "type": "community_purchase",
+            },
+        )
+        return {"url": session.url}
+    except stripe.error.StripeError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 if __name__ == "__main__":
