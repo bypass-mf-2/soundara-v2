@@ -48,12 +48,12 @@ export default function Pricing() {
   const proPlanId = isAnnual ? "pro_annual" : "pro";
   const creatorPlanId = isAnnual ? "creator_annual" : "creator";
 
-  const proPrice = isAnnual ? "$39.99" : "$4.99";
-  const creatorPrice = isAnnual ? "$79.99" : "$9.99";
+  const proPrice = isAnnual ? "$49.99" : "$4.99";
+  const creatorPrice = isAnnual ? "$104.99" : "$9.99";
   const priceSuffix = isAnnual ? "/year" : "/month";
 
-  const proMonthlyEquiv = isAnnual ? "$3.33/mo" : null;
-  const creatorMonthlyEquiv = isAnnual ? "$6.67/mo" : null;
+  const proMonthlyEquiv = isAnnual ? "$4.17/mo" : null;
+  const creatorMonthlyEquiv = isAnnual ? "$8.75/mo" : null;
 
   const toggleStyle = (active) => ({
     padding: "10px 24px",
@@ -83,7 +83,7 @@ export default function Pricing() {
           Monthly
         </button>
         <button style={toggleStyle(billing === "annual")} onClick={() => setBilling("annual")}>
-          Annual <span style={{ marginLeft: "6px", fontSize: "10px", opacity: 0.9 }}>save 33%</span>
+          Annual <span style={{ marginLeft: "6px", fontSize: "10px", opacity: 0.9 }}>save ~$10+</span>
         </button>
       </div>
 
