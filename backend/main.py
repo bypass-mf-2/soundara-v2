@@ -297,7 +297,7 @@ def make_binaural_from_file(path: str, freq_shift_hz: float):
     return stereo, sr
 
 
-def create_preview(full_path, preview_path, seconds=7):
+def create_preview(full_path, preview_path, seconds=15):
     audio = AudioSegment.from_file(full_path)
     preview = audio[:seconds * 1000]
     preview.export(preview_path, format="wav")
@@ -324,7 +324,7 @@ def add_to_library(track_name: str, full_path: str, mode: str, custom_freqs=None
     preview_path = os.path.join(LIBRARY_FOLDER, preview_filename)
 
     # Generate 7-second preview
-    create_preview(full_path, preview_path, seconds=7)
+    create_preview(full_path, preview_path, seconds=15)
 
     # Move full file into library folder (if not already there)
     final_full_path = os.path.join(LIBRARY_FOLDER, os.path.basename(full_path))
@@ -704,14 +704,21 @@ async def create_subscription_session(request: Request):
     
     user_id = validate_user_id(user_id)
 
+    # Current plan names: "pro" ($4.99/mo) and "creator" ($9.99/mo).
+    # Legacy names kept for backward-compat with any in-flight sessions.
     PRICE_IDS = {
-        "limited": os.getenv("STRIPE_PRICE_LIMITED", "price_123limited"),
-        "unlimited": os.getenv("STRIPE_PRICE_UNLIMITED", "price_456unlimited")
+        "pro":       os.getenv("STRIPE_PRICE_PRO",       os.getenv("STRIPE_PRICE_LIMITED", "price_missing_pro")),
+        "creator":   os.getenv("STRIPE_PRICE_CREATOR",   os.getenv("STRIPE_PRICE_UNLIMITED", "price_missing_creator")),
+        "limited":   os.getenv("STRIPE_PRICE_LIMITED",   "price_missing_pro"),
+        "unlimited": os.getenv("STRIPE_PRICE_UNLIMITED", "price_missing_creator"),
     }
+
+    if plan not in PRICE_IDS:
+        raise HTTPException(status_code=400, detail=f"Unknown plan: {plan}")
 
     try:
         base_url = "https://soundara.co" if os.getenv("ENVIRONMENT") == "production" else "http://localhost:5173"
-        
+
         session = stripe.checkout.Session.create(
             mode="subscription",
             payment_method_types=["card"],
@@ -719,6 +726,13 @@ async def create_subscription_session(request: Request):
                 "price": PRICE_IDS[plan],
                 "quantity": 1
             }],
+            subscription_data={
+                "trial_period_days": 3,
+                "metadata": {
+                    "user_id": user_id,
+                    "plan": plan,
+                },
+            },
             success_url=f"{base_url}/success?user={user_id}&subscription={plan}",
             cancel_url=f"{base_url}/pricing",
             metadata={
@@ -766,9 +780,12 @@ async def play_track(track_name: str, user_id: str):
 
     if user_sub:
         plan = user_sub["plan"]
-        if plan == "unlimited":
+        # Current plans (pro, creator) get unlimited playback.
+        # "unlimited" is the legacy name for creator; grandfathered in.
+        if plan in ("pro", "creator", "unlimited"):
             is_subscribed = True
         elif plan == "limited" and user_sub["tracks_used"] < 20:
+            # Legacy limited plan — keep the 20-track cap for grandfathered users
             is_subscribed = True
             user_sub["tracks_used"] += 1
             db.set_subscription(user_id, user_sub)
@@ -891,7 +908,7 @@ async def community_upload(
 
         preview_filename = f"community_preview_{safe_name}_{timestamp_str}.wav"
         preview_path = os.path.join(COMMUNITY_FOLDER, preview_filename)
-        create_preview(community_path, preview_path, seconds=7)
+        create_preview(community_path, preview_path, seconds=15)
 
         entry = {
             "id": track_id,
