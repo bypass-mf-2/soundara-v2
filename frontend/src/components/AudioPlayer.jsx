@@ -1,12 +1,14 @@
 import { useEffect, useRef, useState} from "react";
 import { usePlayer } from "../PlayerContext.jsx";
 import { trackEvent } from "../track_event.js";
+import FeedbackPrompt from "./FeedbackPrompt.jsx";
 
 export default function AudioPlayer() {
   const audioRef = useRef(null);
   const prevUrlRef = useRef("");
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
+  const [feedbackTrack, setFeedbackTrack] = useState(null);
 
   const {
     playlists,
@@ -78,7 +80,13 @@ export default function AudioPlayer() {
     setProgress(e.target.value);
   };
 
-  const handleEnded = () => nextTrack();
+  const handleEnded = () => {
+    // Only prompt if they listened to most of it (≥80%) — avoids annoying users who skipped
+    if (duration > 0 && progress / duration >= 0.8) {
+      setFeedbackTrack(track);
+    }
+    nextTrack();
+  };
 
   const formatTime = (secs) => {
     if (!secs || isNaN(secs)) return "0:00";
@@ -160,6 +168,14 @@ export default function AudioPlayer() {
         onLoadedMetadata={handleLoadedMetadata}
         style={{ display: "none" }}
       />
+
+      {feedbackTrack && (
+        <FeedbackPrompt
+          track={feedbackTrack}
+          mode={feedbackTrack.mode}
+          onClose={() => setFeedbackTrack(null)}
+        />
+      )}
     </div>
   );
 }

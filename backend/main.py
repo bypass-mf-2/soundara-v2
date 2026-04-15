@@ -1108,6 +1108,203 @@ async def create_community_checkout(request: Request):
         raise HTTPException(status_code=400, detail=str(e))
 
 
+# --------------------
+# Community search
+# --------------------
+@app.get("/community/search")
+async def community_search(q: str = "", genre: str = "", limit: int = 50):
+    """Search community tracks by free-text query and/or genre."""
+    results = [t for t in db.load_community() if t.get("status") == "approved"]
+    if genre:
+        results = [t for t in results if t.get("genre", "").lower() == genre.lower()]
+    if q:
+        ql = q.lower()
+        results = [
+            t for t in results
+            if ql in (t.get("name", "") or "").lower()
+            or ql in (t.get("artist", "") or "").lower()
+            or ql in (t.get("description", "") or "").lower()
+        ]
+    return results[:max(1, min(limit, 200))]
+
+
+# --------------------
+# Favorites
+# --------------------
+@app.post("/favorites/toggle")
+async def favorites_toggle(request: Request):
+    body = await request.json()
+    user_id = validate_user_id(body.get("user_id", ""))
+    track_id = body.get("track_id", "")
+    kind = body.get("kind", "")
+    if kind not in ("community", "library"):
+        raise HTTPException(status_code=400, detail="kind must be 'community' or 'library'")
+    if not track_id:
+        raise HTTPException(status_code=400, detail="track_id required")
+    now_favorited = db.toggle_favorite(user_id, track_id, kind)
+    count = db.favorite_count(track_id, kind)
+    return {"favorited": now_favorited, "count": count}
+
+
+@app.get("/favorites/{user_id}")
+async def favorites_list(user_id: str):
+    user_id = validate_user_id(user_id)
+    favs = db.list_user_favorites(user_id)
+
+    community = db.load_community()
+    community_by_id = {t["id"]: t for t in community}
+    library = db.load_library()
+    library_by_id = {t.get("filename_full"): t for t in library}
+
+    hydrated = []
+    for f in favs:
+        if f["kind"] == "community":
+            t = community_by_id.get(f["track_id"])
+        else:
+            t = library_by_id.get(f["track_id"])
+        if t:
+            hydrated.append({**t, "kind": f["kind"], "favorited_at": f["added_at"]})
+    return hydrated
+
+
+@app.get("/favorites/ids/{user_id}/{kind}")
+async def favorites_ids(user_id: str, kind: str):
+    """Fast membership lookup so the frontend can render filled/empty hearts."""
+    user_id = validate_user_id(user_id)
+    if kind not in ("community", "library"):
+        raise HTTPException(status_code=400, detail="kind must be 'community' or 'library'")
+    return list(db.user_favorite_ids(user_id, kind))
+
+
+# --------------------
+# Artist profile + follows
+# --------------------
+@app.get("/artist/{user_id}")
+async def artist_profile(user_id: str, viewer_id: str | None = None):
+    user_id = validate_user_id(user_id)
+    profile = db.get_profile(user_id) or {"user_id": user_id, "display_name": None, "bio": None, "picture": None}
+    tracks = [t for t in db.load_community() if t.get("artist_id") == user_id and t.get("status") == "approved"]
+    return {
+        "profile": profile,
+        "tracks": tracks,
+        "follower_count": db.follower_count(user_id),
+        "is_following": db.is_following(viewer_id, user_id) if viewer_id else False,
+    }
+
+
+@app.put("/artist/{user_id}")
+async def update_artist_profile(user_id: str, request: Request):
+    user_id = validate_user_id(user_id)
+    body = await request.json()
+    viewer_id = body.get("viewer_id")
+    if viewer_id != user_id:
+        raise HTTPException(status_code=403, detail="Can only edit your own profile")
+    db.upsert_profile(
+        user_id,
+        display_name=(body.get("display_name") or None),
+        bio=(body.get("bio") or None),
+        picture=(body.get("picture") or None),
+    )
+    return {"status": "ok"}
+
+
+@app.post("/artist/{user_id}/follow")
+async def follow_artist(user_id: str, request: Request):
+    user_id = validate_user_id(user_id)
+    body = await request.json()
+    follower_id = validate_user_id(body.get("follower_id", ""))
+    if follower_id == user_id:
+        raise HTTPException(status_code=400, detail="Cannot follow yourself")
+    following = db.toggle_follow(follower_id, user_id)
+    return {"following": following, "follower_count": db.follower_count(user_id)}
+
+
+# --------------------
+# Feedback loop
+# --------------------
+@app.post("/feedback")
+async def submit_feedback(request: Request):
+    body = await request.json()
+    user_id = validate_user_id(body.get("user_id", ""))
+    track_id = body.get("track_id", "")
+    mode = body.get("mode", "")
+    rating = int(body.get("rating", 0))
+    session_minutes = int(body.get("session_minutes", 0))
+    if rating not in (-1, 0, 1):
+        raise HTTPException(status_code=400, detail="rating must be -1, 0, or 1")
+    db.add_feedback(user_id, track_id, mode, rating, session_minutes)
+    return {"status": "ok"}
+
+
+@app.get("/feedback/aggregate")
+async def feedback_stats():
+    """Public aggregate. Powers marketing claims like '97% of Alpha listeners...'"""
+    return db.feedback_aggregate()
+
+
+# --------------------
+# Spotify proxy (track name autocomplete)
+# --------------------
+_SPOTIFY_TOKEN_CACHE = {"token": None, "expires_at": 0}
+
+
+def _spotify_token() -> str | None:
+    import base64
+    import time as _time
+    cid = os.getenv("SPOTIFY_CLIENT_ID")
+    secret = os.getenv("SPOTIFY_CLIENT_SECRET")
+    if not cid or not secret:
+        return None
+    now = _time.time()
+    if _SPOTIFY_TOKEN_CACHE["token"] and _SPOTIFY_TOKEN_CACHE["expires_at"] > now + 10:
+        return _SPOTIFY_TOKEN_CACHE["token"]
+    auth = base64.b64encode(f"{cid}:{secret}".encode()).decode()
+    resp = requests.post(
+        "https://accounts.spotify.com/api/token",
+        headers={"Authorization": f"Basic {auth}", "Content-Type": "application/x-www-form-urlencoded"},
+        data={"grant_type": "client_credentials"},
+        timeout=10,
+    )
+    if resp.status_code != 200:
+        return None
+    data = resp.json()
+    _SPOTIFY_TOKEN_CACHE["token"] = data["access_token"]
+    _SPOTIFY_TOKEN_CACHE["expires_at"] = now + data.get("expires_in", 3600)
+    return _SPOTIFY_TOKEN_CACHE["token"]
+
+
+@app.get("/spotify/search")
+async def spotify_search(q: str, limit: int = 6):
+    """Lightweight Spotify track search for autocomplete. Returns [] if not configured."""
+    token = _spotify_token()
+    if not token or not q:
+        return []
+    try:
+        resp = requests.get(
+            "https://api.spotify.com/v1/search",
+            headers={"Authorization": f"Bearer {token}"},
+            params={"q": q, "type": "track", "limit": max(1, min(limit, 10))},
+            timeout=10,
+        )
+        if resp.status_code != 200:
+            return []
+        items = resp.json().get("tracks", {}).get("items", [])
+        return [
+            {
+                "id": t.get("id"),
+                "name": t.get("name"),
+                "artist": ", ".join(a.get("name", "") for a in (t.get("artists") or [])),
+                "album": (t.get("album") or {}).get("name"),
+                "image": ((t.get("album") or {}).get("images") or [{}])[-1].get("url"),
+                "preview_url": t.get("preview_url"),
+            }
+            for t in items
+            if t
+        ]
+    except Exception:
+        return []
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)

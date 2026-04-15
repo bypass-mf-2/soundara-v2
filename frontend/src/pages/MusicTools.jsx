@@ -1,9 +1,12 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { Link } from "react-router-dom";
 import MultiTrackMixer from "../components/tools/MultiTrackMixer.jsx";
 import BeatSequencer from "../components/tools/BeatSequencer.jsx";
 import EffectsProcessor from "../components/tools/EffectsProcessor.jsx";
+import SpotifyAutocomplete from "../components/SpotifyAutocomplete.jsx";
+import HeartButton from "../components/HeartButton.jsx";
 
-const TABS = ["Upload", "Mixer", "Beat Maker", "Effects"];
+const TABS = ["Upload", "Browse", "Mixer", "Beat Maker", "Effects"];
 const GENRES = ["ambient", "electronic", "lo-fi", "classical", "meditation", "nature", "hip-hop", "rock", "pop", "other"];
 
 export default function MusicTools() {
@@ -18,9 +21,25 @@ export default function MusicTools() {
   const [myUploads, setMyUploads] = useState([]);
   const [communityTracks, setCommunityTracks] = useState([]);
 
+  // Search state
+  const [searchQ, setSearchQ] = useState("");
+  const [filterGenre, setFilterGenre] = useState("");
+  const [favoriteIds, setFavoriteIds] = useState(new Set());
+
   const user = JSON.parse(localStorage.getItem("user") || "null");
   const USER_ID = user?.id;
   const API = import.meta.env.VITE_API_URL;
+
+  const loadCommunity = useCallback(() => {
+    const params = new URLSearchParams();
+    if (searchQ) params.append("q", searchQ);
+    if (filterGenre) params.append("genre", filterGenre);
+    const url = params.toString() ? `${API}/community/search?${params}` : `${API}/community/`;
+    fetch(url)
+      .then(r => r.json())
+      .then(data => setCommunityTracks(Array.isArray(data) ? data : []))
+      .catch(() => {});
+  }, [API, searchQ, filterGenre]);
 
   useEffect(() => {
     if (USER_ID) {
@@ -28,12 +47,17 @@ export default function MusicTools() {
         .then(r => r.json())
         .then(data => setMyUploads(Array.isArray(data) ? data : []))
         .catch(() => {});
+      fetch(`${API}/favorites/ids/${USER_ID}/community`)
+        .then(r => r.json())
+        .then(ids => setFavoriteIds(new Set(Array.isArray(ids) ? ids : [])))
+        .catch(() => {});
     }
-    fetch(`${API}/community/`)
-      .then(r => r.json())
-      .then(data => setCommunityTracks(Array.isArray(data) ? data : []))
-      .catch(() => {});
-  }, [USER_ID]);
+  }, [USER_ID, API]);
+
+  useEffect(() => {
+    const t = setTimeout(loadCommunity, 250);
+    return () => clearTimeout(t);
+  }, [loadCommunity]);
 
   const handleUpload = async (e) => {
     e.preventDefault();
@@ -132,7 +156,7 @@ export default function MusicTools() {
               </div>
               <div className="input-group">
                 <label className="input-label">Track Name *</label>
-                <input className="input" value={trackName} onChange={e => setTrackName(e.target.value)} placeholder="Track name" />
+                <SpotifyAutocomplete value={trackName} onChange={setTrackName} placeholder="Track name" />
               </div>
               <div className="input-group">
                 <label className="input-label">Artist Name *</label>
@@ -176,24 +200,63 @@ export default function MusicTools() {
               </div>
             )}
 
-            {communityTracks.length > 0 && (
-              <div style={{ marginTop: "40px" }}>
-                <h4 className="section-title" style={{ fontSize: "18px" }}>Community Tracks</h4>
-                {communityTracks.map(track => (
-                  <div key={track.id} className="track-row" style={{ flexDirection: "column", alignItems: "stretch", gap: "8px" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                      <div className="track-meta">
-                        <span className="track-name">
-                          {track.name} <span style={{ color: "var(--zen-earth)", fontSize: "12px" }}>by {track.artist}</span>
-                        </span>
-                        <span className="track-mode">{track.genre}</span>
-                      </div>
-                      <button className="btn btn-sm" onClick={() => handleBuyCommunity(track)}>Buy</button>
+          </div>
+        )}
+
+        {activeTab === "Browse" && (
+          <div>
+            <h3 className="section-title" style={{ fontSize: "22px" }}>Browse Community Tracks</h3>
+
+            <div style={{ display: "flex", gap: "12px", marginBottom: "24px", flexWrap: "wrap" }}>
+              <input
+                className="input"
+                style={{ flex: "2 1 240px", minWidth: "200px" }}
+                placeholder="Search by name, artist, or description..."
+                value={searchQ}
+                onChange={e => setSearchQ(e.target.value)}
+              />
+              <select
+                className="input"
+                style={{ flex: "0 1 200px", minWidth: "140px" }}
+                value={filterGenre}
+                onChange={e => setFilterGenre(e.target.value)}
+              >
+                <option value="">All genres</option>
+                {GENRES.map(g => <option key={g} value={g}>{g.charAt(0).toUpperCase() + g.slice(1)}</option>)}
+              </select>
+            </div>
+
+            {communityTracks.length === 0 ? (
+              <p style={{ color: "var(--zen-earth)" }}>
+                {searchQ || filterGenre ? "No tracks match your filters." : "No community tracks yet."}
+              </p>
+            ) : (
+              communityTracks.map(track => (
+                <div key={track.id} className="track-row" style={{ flexDirection: "column", alignItems: "stretch", gap: "8px" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                    <div className="track-meta" style={{ flex: 1 }}>
+                      <span className="track-name">
+                        {track.name}{" "}
+                        <Link
+                          to={`/artist/${track.artist_id}`}
+                          style={{ color: "var(--zen-earth)", fontSize: "12px", textDecoration: "none" }}
+                        >
+                          by {track.artist}
+                        </Link>
+                      </span>
+                      <span className="track-mode">{track.genre}</span>
                     </div>
-                    <audio controls src={`${API}/community/file/${track.filename_preview}`} style={{ width: "100%" }} />
+                    <HeartButton
+                      trackId={track.id}
+                      kind="community"
+                      userId={USER_ID}
+                      initialFavorited={favoriteIds.has(track.id)}
+                    />
+                    <button className="btn btn-sm" onClick={() => handleBuyCommunity(track)}>$1.99</button>
                   </div>
-                ))}
-              </div>
+                  <audio controls src={`${API}/community/file/${track.filename_preview}`} style={{ width: "100%" }} />
+                </div>
+              ))
             )}
           </div>
         )}

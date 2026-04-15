@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
+import SpotifyAutocomplete from "../components/SpotifyAutocomplete.jsx";
 
 const FREQUENCIES = [
   { id: "gamma",    name: "Gamma",    hertz: "30-100 Hz", icon: "🧠", desc: "High-level cognitive functioning" },
@@ -205,10 +206,9 @@ export default function Home() {
           <form onSubmit={handleSubmit}>
             <div className="input-group">
               <label className="input-label">Track Name</label>
-              <input
-                className="input"
+              <SpotifyAutocomplete
                 value={trackName}
-                onChange={e => setTrackName(e.target.value)}
+                onChange={setTrackName}
                 placeholder="Enter track name..."
               />
             </div>

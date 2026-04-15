@@ -83,6 +83,44 @@ CREATE TABLE IF NOT EXISTS creator_accounts (
     user_id TEXT PRIMARY KEY,
     data TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS favorites (
+    user_id TEXT NOT NULL,
+    track_id TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    added_at TEXT,
+    PRIMARY KEY (user_id, track_id, kind)
+);
+CREATE INDEX IF NOT EXISTS idx_favorites_user ON favorites(user_id);
+CREATE INDEX IF NOT EXISTS idx_favorites_track ON favorites(track_id, kind);
+
+CREATE TABLE IF NOT EXISTS follows (
+    follower_id TEXT NOT NULL,
+    artist_id TEXT NOT NULL,
+    followed_at TEXT,
+    PRIMARY KEY (follower_id, artist_id)
+);
+CREATE INDEX IF NOT EXISTS idx_follows_artist ON follows(artist_id);
+
+CREATE TABLE IF NOT EXISTS feedback (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id TEXT,
+    track_id TEXT,
+    mode TEXT,
+    rating INTEGER,
+    session_minutes INTEGER,
+    timestamp TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_feedback_mode ON feedback(mode);
+CREATE INDEX IF NOT EXISTS idx_feedback_user ON feedback(user_id);
+
+CREATE TABLE IF NOT EXISTS profiles (
+    user_id TEXT PRIMARY KEY,
+    display_name TEXT,
+    bio TEXT,
+    picture TEXT,
+    updated_at TEXT
+);
 """
 
 
@@ -434,4 +472,155 @@ def set_creator_account(user_id: str, acct: dict) -> None:
             "INSERT INTO creator_accounts (user_id, data) VALUES (?, ?) "
             "ON CONFLICT(user_id) DO UPDATE SET data = excluded.data",
             (user_id, json.dumps(acct)),
+        )
+
+
+# ------------------------------------------------------------------
+# Favorites
+# ------------------------------------------------------------------
+def toggle_favorite(user_id: str, track_id: str, kind: str) -> bool:
+    """Add or remove a favorite. Returns True if now favorited, False if removed."""
+    from datetime import datetime
+    with _tx() as c:
+        row = c.execute(
+            "SELECT 1 FROM favorites WHERE user_id=? AND track_id=? AND kind=?",
+            (user_id, track_id, kind),
+        ).fetchone()
+        if row:
+            c.execute(
+                "DELETE FROM favorites WHERE user_id=? AND track_id=? AND kind=?",
+                (user_id, track_id, kind),
+            )
+            return False
+        c.execute(
+            "INSERT INTO favorites (user_id, track_id, kind, added_at) VALUES (?, ?, ?, ?)",
+            (user_id, track_id, kind, datetime.utcnow().isoformat()),
+        )
+        return True
+
+
+def is_favorited(user_id: str, track_id: str, kind: str) -> bool:
+    r = _CONN.execute(
+        "SELECT 1 FROM favorites WHERE user_id=? AND track_id=? AND kind=?",
+        (user_id, track_id, kind),
+    ).fetchone()
+    return r is not None
+
+
+def favorite_count(track_id: str, kind: str) -> int:
+    r = _CONN.execute(
+        "SELECT COUNT(*) AS n FROM favorites WHERE track_id=? AND kind=?",
+        (track_id, kind),
+    ).fetchone()
+    return int(r["n"])
+
+
+def list_user_favorites(user_id: str) -> list[dict]:
+    rows = _CONN.execute(
+        "SELECT track_id, kind, added_at FROM favorites WHERE user_id=? ORDER BY added_at DESC",
+        (user_id,),
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def user_favorite_ids(user_id: str, kind: str) -> set[str]:
+    rows = _CONN.execute(
+        "SELECT track_id FROM favorites WHERE user_id=? AND kind=?",
+        (user_id, kind),
+    ).fetchall()
+    return {r["track_id"] for r in rows}
+
+
+# ------------------------------------------------------------------
+# Follows
+# ------------------------------------------------------------------
+def toggle_follow(follower_id: str, artist_id: str) -> bool:
+    from datetime import datetime
+    with _tx() as c:
+        row = c.execute(
+            "SELECT 1 FROM follows WHERE follower_id=? AND artist_id=?",
+            (follower_id, artist_id),
+        ).fetchone()
+        if row:
+            c.execute(
+                "DELETE FROM follows WHERE follower_id=? AND artist_id=?",
+                (follower_id, artist_id),
+            )
+            return False
+        c.execute(
+            "INSERT INTO follows (follower_id, artist_id, followed_at) VALUES (?, ?, ?)",
+            (follower_id, artist_id, datetime.utcnow().isoformat()),
+        )
+        return True
+
+
+def is_following(follower_id: str, artist_id: str) -> bool:
+    r = _CONN.execute(
+        "SELECT 1 FROM follows WHERE follower_id=? AND artist_id=?",
+        (follower_id, artist_id),
+    ).fetchone()
+    return r is not None
+
+
+def follower_count(artist_id: str) -> int:
+    r = _CONN.execute(
+        "SELECT COUNT(*) AS n FROM follows WHERE artist_id=?", (artist_id,)
+    ).fetchone()
+    return int(r["n"])
+
+
+# ------------------------------------------------------------------
+# Feedback
+# ------------------------------------------------------------------
+def add_feedback(user_id: str, track_id: str, mode: str, rating: int, session_minutes: int = 0) -> None:
+    from datetime import datetime
+    with _tx() as c:
+        c.execute(
+            "INSERT INTO feedback (user_id, track_id, mode, rating, session_minutes, timestamp) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (user_id, track_id, mode, rating, session_minutes, datetime.utcnow().isoformat()),
+        )
+
+
+def feedback_aggregate() -> dict:
+    """Return percent-positive and counts per mode."""
+    rows = _CONN.execute(
+        "SELECT mode, "
+        "SUM(CASE WHEN rating > 0 THEN 1 ELSE 0 END) AS positives, "
+        "COUNT(*) AS total "
+        "FROM feedback WHERE mode IS NOT NULL AND rating != 0 GROUP BY mode"
+    ).fetchall()
+    out = {}
+    for r in rows:
+        total = int(r["total"]) or 1
+        pos = int(r["positives"])
+        out[r["mode"]] = {
+            "positive_pct": round(pos * 100 / total),
+            "total_responses": total,
+        }
+    return out
+
+
+# ------------------------------------------------------------------
+# Profiles
+# ------------------------------------------------------------------
+def get_profile(user_id: str) -> dict | None:
+    r = _CONN.execute(
+        "SELECT user_id, display_name, bio, picture, updated_at FROM profiles WHERE user_id=?",
+        (user_id,),
+    ).fetchone()
+    return dict(r) if r else None
+
+
+def upsert_profile(user_id: str, display_name: str | None, bio: str | None, picture: str | None) -> None:
+    from datetime import datetime
+    with _tx() as c:
+        c.execute(
+            "INSERT INTO profiles (user_id, display_name, bio, picture, updated_at) VALUES (?, ?, ?, ?, ?) "
+            "ON CONFLICT(user_id) DO UPDATE SET "
+            "display_name = COALESCE(excluded.display_name, display_name), "
+            "bio = COALESCE(excluded.bio, bio), "
+            "picture = COALESCE(excluded.picture, picture), "
+            "updated_at = excluded.updated_at",
+            (user_id, display_name, bio, picture, datetime.utcnow().isoformat()),
         )
