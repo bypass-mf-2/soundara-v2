@@ -7,6 +7,15 @@ frontend/build/
 # Backend build (if any)
 backend/build/
 
+# SQLite DB (server-only runtime state)
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# JSON backups created by the SQLite migration
+*.pre_migration.bak
+
 # Environment variables
 # Ignore backend secrets at the project root
 /.env

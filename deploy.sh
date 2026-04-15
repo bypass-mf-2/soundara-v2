@@ -72,6 +72,10 @@ log "Creating Python virtualenv at $VENV_DIR"
 log "Installing Python requirements"
 "$VENV_DIR/bin/pip" install -r "$APP_DIR/requirements.txt"
 
+log "Running SQLite migration (idempotent — safely no-ops after first run)"
+cd "$APP_DIR"
+"$VENV_DIR/bin/python" backend/migrate_json_to_sqlite.py || echo "(migration step failed; check logs)"
+
 log "Installing frontend dependencies and building"
 cd "$FRONTEND_DIR"
 npm install
