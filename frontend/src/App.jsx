@@ -27,12 +27,31 @@ function LoginScreen({ onLogin }) {
   return (
     <div className="login-gate">
       <div className="login-gate-card">
+        <Link
+          to="/demo"
+          style={{
+            display: "block",
+            marginBottom: "24px",
+            padding: "12px 20px",
+            background: "var(--zen-cream)",
+            border: "1px solid rgba(196, 181, 157, 0.3)",
+            color: "var(--zen-charcoal)",
+            fontSize: "13px",
+            letterSpacing: "1px",
+            textDecoration: "none",
+            textAlign: "center",
+            transition: "all 0.3s ease",
+          }}
+          onMouseEnter={e => { e.currentTarget.style.background = "var(--zen-sage)"; e.currentTarget.style.color = "white"; }}
+          onMouseLeave={e => { e.currentTarget.style.background = "var(--zen-cream)"; e.currentTarget.style.color = "var(--zen-charcoal)"; }}
+        >
+          🎧 Headphones required — hear the demo first →
+        </Link>
         <img src={logo} alt="Soundara" className="login-gate-logo" />
         <h1 className="login-gate-title">soundara</h1>
         <p className="login-gate-subtitle">
           Transform your music into brain-enhancing frequencies.
-          Sign in to continue, or{" "}
-          <Link to="/demo" style={{ color: "var(--zen-sage)" }}>hear a demo first</Link>.
+          Sign in to continue.
         </p>
         <div className="login-gate-btns">
           <GoogleLogin

@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef } from "react";
 import { Link } from "react-router-dom";
+import { trackEvent } from "../track_event.js";
 
 export default function Demo() {
   const API = import.meta.env.VITE_API_URL;
@@ -12,13 +13,19 @@ export default function Demo() {
       .then(r => r.json())
       .then(data => setDemos(Array.isArray(data) ? data : []))
       .catch(() => setDemos([]));
+    trackEvent({ type: "demo_view" });
   }, [API]);
 
   const play = (id, url) => {
     if (!audioRef.current) return;
     if (currentId === id) {
-      if (audioRef.current.paused) audioRef.current.play();
-      else audioRef.current.pause();
+      if (audioRef.current.paused) {
+        audioRef.current.play();
+        trackEvent({ type: "demo_play", mode: id, action: "resume" });
+      } else {
+        audioRef.current.pause();
+        trackEvent({ type: "demo_play", mode: id, action: "pause" });
+      }
       return;
     }
     audioRef.current.pause();
@@ -26,9 +33,13 @@ export default function Demo() {
     audioRef.current.currentTime = 0;
     audioRef.current.play().catch(() => {});
     setCurrentId(id);
+    trackEvent({ type: "demo_play", mode: id, action: "start" });
   };
 
-  const handleEnded = () => setCurrentId(null);
+  const handleEnded = () => {
+    if (currentId) trackEvent({ type: "demo_play", mode: currentId, action: "complete" });
+    setCurrentId(null);
+  };
 
   return (
     <div className="container" style={{ paddingTop: "40px" }}>
