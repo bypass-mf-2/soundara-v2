@@ -4,6 +4,7 @@ export default function Pricing() {
   const user = JSON.parse(localStorage.getItem("user") || "null");
   const USER_ID = user?.id;
   const [userSub, setUserSub] = useState(null);
+  const [billing, setBilling] = useState("monthly");
   const API = import.meta.env.VITE_API_URL;
 
   useEffect(() => {
@@ -27,7 +28,6 @@ export default function Pricing() {
       alert("Please log in to subscribe.");
       return;
     }
-
     try {
       const response = await fetch(`${API}/create_subscription_session/`, {
         method: "POST",
@@ -43,6 +43,29 @@ export default function Pricing() {
   };
 
   const currentPlan = userSub?.plan;
+  const isAnnual = billing === "annual";
+
+  const proPlanId = isAnnual ? "pro_annual" : "pro";
+  const creatorPlanId = isAnnual ? "creator_annual" : "creator";
+
+  const proPrice = isAnnual ? "$39.99" : "$4.99";
+  const creatorPrice = isAnnual ? "$79.99" : "$9.99";
+  const priceSuffix = isAnnual ? "/year" : "/month";
+
+  const proMonthlyEquiv = isAnnual ? "$3.33/mo" : null;
+  const creatorMonthlyEquiv = isAnnual ? "$6.67/mo" : null;
+
+  const toggleStyle = (active) => ({
+    padding: "10px 24px",
+    border: active ? "1px solid var(--zen-sage)" : "1px solid rgba(196, 181, 157, 0.3)",
+    background: active ? "var(--zen-sage)" : "transparent",
+    color: active ? "white" : "var(--zen-charcoal)",
+    fontSize: "13px",
+    letterSpacing: "1px",
+    textTransform: "lowercase",
+    cursor: "pointer",
+    transition: "all 0.3s ease",
+  });
 
   return (
     <div className="container">
@@ -54,12 +77,22 @@ export default function Pricing() {
         </p>
       </section>
 
+      {/* Billing toggle */}
+      <div style={{ display: "flex", justifyContent: "center", gap: 0, marginBottom: "40px" }}>
+        <button style={toggleStyle(billing === "monthly")} onClick={() => setBilling("monthly")}>
+          Monthly
+        </button>
+        <button style={toggleStyle(billing === "annual")} onClick={() => setBilling("annual")}>
+          Annual <span style={{ marginLeft: "6px", fontSize: "10px", opacity: 0.9 }}>save 33%</span>
+        </button>
+      </div>
+
       <div
         style={{
           display: "grid",
           gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
           gap: "24px",
-          margin: "40px 0",
+          margin: "0 0 40px",
         }}
       >
         {/* Free */}
@@ -106,8 +139,14 @@ export default function Pricing() {
             Most Popular
           </div>
           <div className="frequency-hz">Pro</div>
-          <div style={{ fontSize: "48px", fontWeight: 300, marginBottom: "4px" }}>$4.99</div>
-          <div style={{ color: "var(--zen-earth)", fontSize: "13px", marginBottom: "24px" }}>/month</div>
+          <div style={{ fontSize: "48px", fontWeight: 300, marginBottom: "4px" }}>{proPrice}</div>
+          <div style={{ color: "var(--zen-earth)", fontSize: "13px", marginBottom: "4px" }}>{priceSuffix}</div>
+          {proMonthlyEquiv && (
+            <div style={{ color: "var(--zen-sage)", fontSize: "12px", marginBottom: "24px", letterSpacing: "0.5px" }}>
+              just {proMonthlyEquiv}
+            </div>
+          )}
+          {!proMonthlyEquiv && <div style={{ marginBottom: "24px" }} />}
           <ul style={{ listStyle: "none", padding: 0, color: "var(--zen-earth)", fontSize: "14px", lineHeight: 2, flex: 1 }}>
             <li>✓ Everything in Free</li>
             <li>✓ <strong style={{ color: "var(--zen-charcoal)" }}>Unlimited full downloads</strong></li>
@@ -121,18 +160,24 @@ export default function Pricing() {
           <button
             className="btn btn-primary"
             style={{ width: "100%", marginTop: "12px" }}
-            onClick={() => handleSubscribe("pro")}
-            disabled={currentPlan === "pro"}
+            onClick={() => handleSubscribe(proPlanId)}
+            disabled={currentPlan === proPlanId}
           >
-            {currentPlan === "pro" ? "Current Plan" : "Start Free Trial"}
+            {currentPlan === proPlanId ? "Current Plan" : "Start Free Trial"}
           </button>
         </div>
 
         {/* Creator */}
         <div className="card" style={{ display: "flex", flexDirection: "column" }}>
           <div className="frequency-hz">Creator</div>
-          <div style={{ fontSize: "48px", fontWeight: 300, marginBottom: "4px" }}>$9.99</div>
-          <div style={{ color: "var(--zen-earth)", fontSize: "13px", marginBottom: "24px" }}>/month</div>
+          <div style={{ fontSize: "48px", fontWeight: 300, marginBottom: "4px" }}>{creatorPrice}</div>
+          <div style={{ color: "var(--zen-earth)", fontSize: "13px", marginBottom: "4px" }}>{priceSuffix}</div>
+          {creatorMonthlyEquiv && (
+            <div style={{ color: "var(--zen-sage)", fontSize: "12px", marginBottom: "24px", letterSpacing: "0.5px" }}>
+              just {creatorMonthlyEquiv}
+            </div>
+          )}
+          {!creatorMonthlyEquiv && <div style={{ marginBottom: "24px" }} />}
           <ul style={{ listStyle: "none", padding: 0, color: "var(--zen-earth)", fontSize: "14px", lineHeight: 2, flex: 1 }}>
             <li>✓ Everything in Pro</li>
             <li>✓ <strong style={{ color: "var(--zen-charcoal)" }}>Multi-track mixer</strong></li>
@@ -146,10 +191,10 @@ export default function Pricing() {
           <button
             className="btn btn-primary"
             style={{ width: "100%", marginTop: "12px" }}
-            onClick={() => handleSubscribe("creator")}
-            disabled={currentPlan === "creator"}
+            onClick={() => handleSubscribe(creatorPlanId)}
+            disabled={currentPlan === creatorPlanId}
           >
-            {currentPlan === "creator" ? "Current Plan" : "Start Free Trial"}
+            {currentPlan === creatorPlanId ? "Current Plan" : "Start Free Trial"}
           </button>
         </div>
       </div>

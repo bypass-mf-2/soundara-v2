@@ -704,13 +704,15 @@ async def create_subscription_session(request: Request):
     
     user_id = validate_user_id(user_id)
 
-    # Current plan names: "pro" ($4.99/mo) and "creator" ($9.99/mo).
-    # Legacy names kept for backward-compat with any in-flight sessions.
+    # Current plan names: "pro" / "pro_annual" / "creator" / "creator_annual"
+    # Legacy names ("limited" / "unlimited") kept for backward-compat.
     PRICE_IDS = {
-        "pro":       os.getenv("STRIPE_PRICE_PRO",       os.getenv("STRIPE_PRICE_LIMITED", "price_missing_pro")),
-        "creator":   os.getenv("STRIPE_PRICE_CREATOR",   os.getenv("STRIPE_PRICE_UNLIMITED", "price_missing_creator")),
-        "limited":   os.getenv("STRIPE_PRICE_LIMITED",   "price_missing_pro"),
-        "unlimited": os.getenv("STRIPE_PRICE_UNLIMITED", "price_missing_creator"),
+        "pro":             os.getenv("STRIPE_PRICE_PRO",             os.getenv("STRIPE_PRICE_LIMITED", "price_missing_pro")),
+        "pro_annual":      os.getenv("STRIPE_PRICE_PRO_ANNUAL",      "price_missing_pro_annual"),
+        "creator":         os.getenv("STRIPE_PRICE_CREATOR",         os.getenv("STRIPE_PRICE_UNLIMITED", "price_missing_creator")),
+        "creator_annual":  os.getenv("STRIPE_PRICE_CREATOR_ANNUAL",  "price_missing_creator_annual"),
+        "limited":         os.getenv("STRIPE_PRICE_LIMITED",         "price_missing_pro"),
+        "unlimited":       os.getenv("STRIPE_PRICE_UNLIMITED",       "price_missing_creator"),
     }
 
     if plan not in PRICE_IDS:
@@ -780,9 +782,9 @@ async def play_track(track_name: str, user_id: str):
 
     if user_sub:
         plan = user_sub["plan"]
-        # Current plans (pro, creator) get unlimited playback.
+        # Current plans (pro, creator, and their annual variants) get unlimited playback.
         # "unlimited" is the legacy name for creator; grandfathered in.
-        if plan in ("pro", "creator", "unlimited"):
+        if plan in ("pro", "pro_annual", "creator", "creator_annual", "unlimited"):
             is_subscribed = True
         elif plan == "limited" and user_sub["tracks_used"] < 20:
             # Legacy limited plan — keep the 20-track cap for grandfathered users
