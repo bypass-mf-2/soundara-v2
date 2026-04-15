@@ -395,6 +395,43 @@ async def health_check():
     return {"status": "healthy", "timestamp": datetime.now().isoformat()}
 
 
+# --------------------
+# Public demo (no auth)
+# --------------------
+DEMO_MODES = [
+    {"id": "gamma",    "name": "Gamma",    "hz": "30-100 Hz", "icon": "🧠", "desc": "High-level cognitive functioning"},
+    {"id": "alpha",    "name": "Alpha",    "hz": "8-12 Hz",   "icon": "✨", "desc": "Relaxed focus & creativity"},
+    {"id": "beta",     "name": "Beta",     "hz": "12-30 Hz",  "icon": "⚡", "desc": "Alertness & problem-solving"},
+    {"id": "theta",    "name": "Theta",    "hz": "4-8 Hz",    "icon": "🧘", "desc": "Deep meditation & intuition"},
+    {"id": "delta",    "name": "Delta",    "hz": "0.5-4 Hz",  "icon": "😴", "desc": "Deep sleep & recovery"},
+    {"id": "schumann", "name": "Schumann", "hz": "7.83 Hz",   "icon": "🌍", "desc": "Earth's natural frequency"},
+]
+DEMO_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets")
+
+
+@app.get("/demo/list")
+async def demo_list():
+    """Return metadata for the 6 demo clips. Only includes entries whose file exists."""
+    out = []
+    for m in DEMO_MODES:
+        path = os.path.join(DEMO_DIR, f"demo_{m['id']}.wav")
+        if os.path.exists(path):
+            out.append({**m, "url": f"/demo/file/demo_{m['id']}.wav"})
+    return out
+
+
+@app.get("/demo/file/{filename}")
+async def demo_file(filename: str):
+    """Serve a pre-generated demo clip."""
+    safe = sanitize_filename(filename)
+    if not safe.startswith("demo_") or not safe.endswith(".wav"):
+        raise HTTPException(status_code=404, detail="Not found")
+    path = os.path.join(DEMO_DIR, safe)
+    if not os.path.exists(path):
+        raise HTTPException(status_code=404, detail="Not found")
+    return FileResponse(path, media_type="audio/wav", filename=safe)
+
+
 @app.get("/user_playlists/{user_id}")
 async def get_user_playlists(user_id: str):
     """Get user's playlists"""

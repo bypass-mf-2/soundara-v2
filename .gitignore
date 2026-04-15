@@ -16,6 +16,9 @@ backend/build/
 # JSON backups created by the SQLite migration
 *.pre_migration.bak
 
+# Generated demo clips (regenerated from demo_source.mp3 on deploy)
+backend/assets/demo_*.wav
+
 # Environment variables
 # Ignore backend secrets at the project root
 /.env

@@ -76,6 +76,9 @@ log "Running SQLite migration (idempotent — safely no-ops after first run)"
 cd "$APP_DIR"
 "$VENV_DIR/bin/python" backend/migrate_json_to_sqlite.py || echo "(migration step failed; check logs)"
 
+log "Generating demo clips (idempotent — skips modes whose file already exists)"
+"$VENV_DIR/bin/python" backend/generate_demos.py || echo "(demo generation failed; check logs)"
+
 log "Installing frontend dependencies and building"
 cd "$FRONTEND_DIR"
 npm install

@@ -27,6 +27,7 @@ export default function Navbar({ user, onLogout }) {
           <Link to="/about" onClick={() => handleNavClick("about")}>About</Link>
           <Link to="/future" onClick={() => handleNavClick("future")}>Future</Link>
           <Link to="/contact" onClick={() => handleNavClick("contact")}>Contact</Link>
+          <Link to="/demo" onClick={() => handleNavClick("demo")}>Demo</Link>
           {isAdmin && <Link to="/admin" onClick={() => handleNavClick("admin")}>Admin</Link>}
         </div>
 
