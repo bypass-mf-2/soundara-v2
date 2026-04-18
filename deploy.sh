@@ -167,7 +167,7 @@ server {
     }
 
     # Backend routes proxied to uvicorn on 127.0.0.1:$BACKEND_PORT
-    location ~ ^/(health|library|user_library|user_playlists|user_subscriptions|process|process_audio|track_event|create_checkout_session|create_subscription_session|submit_survey|play|webhook|admin) {
+    location ~ ^/(health|library|user_library|user_playlists|user_subscriptions|process|process_audio|track_event|create_checkout_session|create_subscription_session|submit_survey|play|webhook|admin|api/referral|demo) {
         proxy_pass http://127.0.0.1:$BACKEND_PORT;
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;

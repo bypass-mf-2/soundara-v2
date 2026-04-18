@@ -709,16 +709,19 @@ async def create_subscription_session(request: Request):
     # Current plan names: "pro" / "pro_annual" / "creator" / "creator_annual"
     # Legacy names ("limited" / "unlimited") kept for backward-compat.
     PRICE_IDS = {
-        "pro":             os.getenv("STRIPE_PRICE_PRO",             os.getenv("STRIPE_PRICE_LIMITED", "price_missing_pro")),
-        "pro_annual":      os.getenv("STRIPE_PRICE_PRO_ANNUAL",      "price_missing_pro_annual"),
-        "creator":         os.getenv("STRIPE_PRICE_CREATOR",         os.getenv("STRIPE_PRICE_UNLIMITED", "price_missing_creator")),
-        "creator_annual":  os.getenv("STRIPE_PRICE_CREATOR_ANNUAL",  "price_missing_creator_annual"),
-        "limited":         os.getenv("STRIPE_PRICE_LIMITED",         "price_missing_pro"),
-        "unlimited":       os.getenv("STRIPE_PRICE_UNLIMITED",       "price_missing_creator"),
+        "pro":             os.getenv("STRIPE_PRICE_PRO_MONTHLY") or os.getenv("STRIPE_PRICE_PRO") or os.getenv("STRIPE_PRICE_LIMITED"),
+        "pro_annual":      os.getenv("STRIPE_PRICE_PRO_ANNUAL"),
+        "creator":         os.getenv("STRIPE_PRICE_CREATOR_MONTHLY") or os.getenv("STRIPE_PRICE_CREATOR") or os.getenv("STRIPE_PRICE_UNLIMITED"),
+        "creator_annual":  os.getenv("STRIPE_PRICE_CREATOR_ANNUAL"),
+        "limited":         os.getenv("STRIPE_PRICE_LIMITED") or os.getenv("STRIPE_PRICE_PRO_MONTHLY"),
+        "unlimited":       os.getenv("STRIPE_PRICE_UNLIMITED") or os.getenv("STRIPE_PRICE_CREATOR_MONTHLY"),
     }
 
     if plan not in PRICE_IDS:
         raise HTTPException(status_code=400, detail=f"Unknown plan: {plan}")
+
+    if not PRICE_IDS[plan]:
+        raise HTTPException(status_code=500, detail=f"Stripe price ID not configured for plan: {plan}")
 
     # Resolve discount. Monthly plans only; annual plans ignore both codes silently-with-log.
     is_monthly_plan = plan in ("pro", "creator", "limited", "unlimited")
