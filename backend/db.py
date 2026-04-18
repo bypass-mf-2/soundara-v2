@@ -121,6 +121,24 @@ CREATE TABLE IF NOT EXISTS profiles (
     picture TEXT,
     updated_at TEXT
 );
+
+CREATE TABLE IF NOT EXISTS referral_codes (
+    code TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL UNIQUE,
+    created_at TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_referral_codes_user ON referral_codes(user_id);
+
+CREATE TABLE IF NOT EXISTS referral_redemptions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    referrer_user_id TEXT NOT NULL,
+    referred_user_id TEXT NOT NULL,
+    code TEXT NOT NULL,
+    stripe_session_id TEXT,
+    created_at TEXT,
+    UNIQUE (referred_user_id)
+);
+CREATE INDEX IF NOT EXISTS idx_referral_redemptions_referrer ON referral_redemptions(referrer_user_id);
 """
 
 
@@ -624,3 +642,66 @@ def upsert_profile(user_id: str, display_name: str | None, bio: str | None, pict
             "updated_at = excluded.updated_at",
             (user_id, display_name, bio, picture, datetime.utcnow().isoformat()),
         )
+
+
+# ------------------------------------------------------------------
+# Referrals
+# ------------------------------------------------------------------
+def get_referral_code_for_user(user_id: str) -> str | None:
+    r = _CONN.execute(
+        "SELECT code FROM referral_codes WHERE user_id = ?", (user_id,)
+    ).fetchone()
+    return r["code"] if r else None
+
+
+def get_user_id_for_referral_code(code: str) -> str | None:
+    r = _CONN.execute(
+        "SELECT user_id FROM referral_codes WHERE code = ?", (code,)
+    ).fetchone()
+    return r["user_id"] if r else None
+
+
+def create_referral_code(user_id: str, code: str) -> None:
+    from datetime import datetime
+    with _tx() as c:
+        c.execute(
+            "INSERT OR IGNORE INTO referral_codes (code, user_id, created_at) VALUES (?, ?, ?)",
+            (code, user_id, datetime.utcnow().isoformat()),
+        )
+
+
+def record_referral_redemption(
+    referrer_user_id: str,
+    referred_user_id: str,
+    code: str,
+    stripe_session_id: str | None = None,
+) -> bool:
+    """Record a redemption. Returns False if this user already redeemed a referral."""
+    from datetime import datetime
+    with _tx() as c:
+        try:
+            c.execute(
+                "INSERT INTO referral_redemptions "
+                "(referrer_user_id, referred_user_id, code, stripe_session_id, created_at) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (referrer_user_id, referred_user_id, code, stripe_session_id,
+                 datetime.utcnow().isoformat()),
+            )
+            return True
+        except sqlite3.IntegrityError:
+            return False
+
+
+def user_has_redeemed_referral(user_id: str) -> bool:
+    r = _CONN.execute(
+        "SELECT 1 FROM referral_redemptions WHERE referred_user_id = ?", (user_id,)
+    ).fetchone()
+    return r is not None
+
+
+def referral_count_for_user(user_id: str) -> int:
+    r = _CONN.execute(
+        "SELECT COUNT(*) AS n FROM referral_redemptions WHERE referrer_user_id = ?",
+        (user_id,),
+    ).fetchone()
+    return int(r["n"])

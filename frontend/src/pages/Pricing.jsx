@@ -1,11 +1,27 @@
 import { useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 
 export default function Pricing() {
   const user = JSON.parse(localStorage.getItem("user") || "null");
   const USER_ID = user?.id;
   const [userSub, setUserSub] = useState(null);
   const [billing, setBilling] = useState("monthly");
+  const [promoInput, setPromoInput] = useState("");
+  const [refCode, setRefCode] = useState(() => localStorage.getItem("soundara_ref") || "");
+  const [searchParams] = useSearchParams();
   const API = import.meta.env.VITE_API_URL;
+
+  useEffect(() => {
+    const urlRef = (searchParams.get("ref") || "").trim().toUpperCase();
+    if (urlRef) {
+      localStorage.setItem("soundara_ref", urlRef);
+      setRefCode(urlRef);
+    }
+    const urlPromo = (searchParams.get("promo") || "").trim().toUpperCase();
+    if (urlPromo) {
+      setPromoInput(urlPromo);
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     if (!USER_ID) return;
@@ -29,12 +45,21 @@ export default function Pricing() {
       return;
     }
     try {
+      const body = { user_id: USER_ID, plan };
+      const promo = promoInput.trim().toUpperCase();
+      if (promo) body.promo_code = promo;
+      if (refCode) body.ref_code = refCode;
+
       const response = await fetch(`${API}/create_subscription_session/`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ user_id: USER_ID, plan }),
+        body: JSON.stringify(body),
       });
       const data = await response.json();
+      if (!response.ok) {
+        alert(data.detail || "Error creating subscription session.");
+        return;
+      }
       if (data.url) window.location.href = data.url;
     } catch (err) {
       console.error(err);
@@ -78,7 +103,7 @@ export default function Pricing() {
       </section>
 
       {/* Billing toggle */}
-      <div style={{ display: "flex", justifyContent: "center", gap: 0, marginBottom: "40px" }}>
+      <div style={{ display: "flex", justifyContent: "center", gap: 0, marginBottom: "24px" }}>
         <button style={toggleStyle(billing === "monthly")} onClick={() => setBilling("monthly")}>
           Monthly
         </button>
@@ -86,6 +111,72 @@ export default function Pricing() {
           Annual <span style={{ marginLeft: "6px", fontSize: "10px", opacity: 0.9 }}>save ~$10+</span>
         </button>
       </div>
+
+      {/* Referral banner — shown when user arrived via ?ref= link */}
+      {refCode && !isAnnual && (
+        <div
+          style={{
+            maxWidth: "560px",
+            margin: "0 auto 16px",
+            padding: "12px 16px",
+            background: "rgba(139, 168, 136, 0.12)",
+            border: "1px solid var(--zen-sage)",
+            color: "var(--zen-charcoal)",
+            fontSize: "14px",
+            textAlign: "center",
+          }}
+        >
+          🎁 Referral applied — <strong>33% off your first month</strong> (monthly plans only)
+          <button
+            onClick={() => { localStorage.removeItem("soundara_ref"); setRefCode(""); }}
+            style={{
+              marginLeft: "12px",
+              background: "transparent",
+              border: "none",
+              color: "var(--zen-earth)",
+              fontSize: "12px",
+              cursor: "pointer",
+              textDecoration: "underline",
+            }}
+          >
+            remove
+          </button>
+        </div>
+      )}
+
+      {/* Promo code input */}
+      {!isAnnual && (
+        <div
+          style={{
+            maxWidth: "420px",
+            margin: "0 auto 32px",
+            display: "flex",
+            gap: "8px",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <label style={{ fontSize: "12px", color: "var(--zen-earth)", letterSpacing: "1px" }}>
+            PROMO
+          </label>
+          <input
+            type="text"
+            value={promoInput}
+            onChange={(e) => setPromoInput(e.target.value)}
+            placeholder="Enter code"
+            style={{
+              flex: 1,
+              maxWidth: "200px",
+              padding: "8px 12px",
+              border: "1px solid rgba(196, 181, 157, 0.5)",
+              background: "white",
+              fontSize: "14px",
+              letterSpacing: "1px",
+              textTransform: "uppercase",
+            }}
+          />
+        </div>
+      )}
 
       <div
         style={{

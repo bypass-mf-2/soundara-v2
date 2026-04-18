@@ -74,8 +74,24 @@ async def handle_stripe_webhook(request: Request):
 
 
 async def handle_checkout_completed(event: dict):
-    """Add purchased track to user's library."""
+    """Add purchased track to user's library, or record referral redemption for subscriptions."""
     session = event["data"]["object"]
+
+    # Subscription checkouts with a referral code: record the redemption.
+    metadata = session.get("metadata") or {}
+    ref_code = metadata.get("ref_code")
+    referrer_user_id = metadata.get("referrer_user_id")
+    referred_user_id = metadata.get("user_id")
+    if session.get("mode") == "subscription" and ref_code and referrer_user_id and referred_user_id:
+        recorded = db.record_referral_redemption(
+            referrer_user_id=referrer_user_id,
+            referred_user_id=referred_user_id,
+            code=ref_code,
+            stripe_session_id=session.get("id"),
+        )
+        if recorded:
+            logger.info(f"Referral redeemed - code: {ref_code}, referrer: {referrer_user_id}, referred: {referred_user_id}")
+
     success_url = session.get("success_url", "")
 
     import urllib.parse
@@ -86,7 +102,6 @@ async def handle_checkout_completed(event: dict):
     track_filename = params.get("track", [None])[0]
 
     if not user_id or not track_filename:
-        logger.error(f"Missing user_id or track_filename in checkout session: {session['id']}")
         return
 
     # Find the track in main library

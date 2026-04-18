@@ -16,6 +16,7 @@ import MusicTools from "./pages/MusicTools.jsx";
 import CreatorDashboard from "./pages/CreatorDashboard.jsx";
 import AdminDashboard from "./pages/AdminDashboard.jsx";
 import ArtistProfile from "./pages/ArtistProfile.jsx";
+import Referral from "./pages/Referral.jsx";
 import AudioPlayer from "./components/AudioPlayer.jsx";
 import logo from "./assets/soundara.jpg";
 
@@ -135,6 +136,7 @@ function AppInner({ user, onLogin, onLogout, playlistTracks, addToPlaylist, libr
             <Route path="/admin" element={<AdminDashboard />} />
             <Route path="/artist/:userId" element={<ArtistProfile />} />
             <Route path="/success" element={<Success />} />
+            <Route path="/refer" element={<Referral />} />
           </>
         )}
 

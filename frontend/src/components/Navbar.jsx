@@ -24,6 +24,7 @@ export default function Navbar({ user, onLogout }) {
           <Link to="/tools" onClick={() => handleNavClick("tools")}>Tools</Link>
           <Link to="/creator" onClick={() => handleNavClick("creator")}>Creator</Link>
           <Link to="/pricing" onClick={() => handleNavClick("pricing")}>Pricing</Link>
+          <Link to="/refer" onClick={() => handleNavClick("refer")}>Refer</Link>
           <Link to="/about" onClick={() => handleNavClick("about")}>About</Link>
           <Link to="/future" onClick={() => handleNavClick("future")}>Future</Link>
           <Link to="/contact" onClick={() => handleNavClick("contact")}>Contact</Link>

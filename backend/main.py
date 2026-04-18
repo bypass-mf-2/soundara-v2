@@ -695,13 +695,15 @@ async def create_checkout_session(request: Request):
 async def create_subscription_session(request: Request):
     """Create subscription checkout session"""
     data = await request.json()
-    
+
     user_id = data.get("user_id")
     plan = data.get("plan")
+    promo_code = (data.get("promo_code") or "").strip().upper() or None
+    ref_code = (data.get("ref_code") or "").strip().upper() or None
 
     if not user_id or not plan:
         raise HTTPException(status_code=400, detail="Missing user_id or plan")
-    
+
     user_id = validate_user_id(user_id)
 
     # Current plan names: "pro" / "pro_annual" / "creator" / "creator_annual"
@@ -718,10 +720,31 @@ async def create_subscription_session(request: Request):
     if plan not in PRICE_IDS:
         raise HTTPException(status_code=400, detail=f"Unknown plan: {plan}")
 
+    # Resolve discount. Monthly plans only; annual plans ignore both codes silently-with-log.
+    is_monthly_plan = plan in ("pro", "creator", "limited", "unlimited")
+    coupon_id: str | None = None
+    session_metadata: dict[str, str] = {"user_id": user_id, "plan": plan}
+
+    if is_monthly_plan:
+        if promo_code == "LAUNCH50":
+            coupon_id = "LAUNCH50"
+            session_metadata["promo_code"] = "LAUNCH50"
+        elif ref_code:
+            referrer_id = db.get_user_id_for_referral_code(ref_code)
+            if not referrer_id:
+                raise HTTPException(status_code=400, detail="Invalid referral code")
+            if referrer_id == user_id:
+                raise HTTPException(status_code=400, detail="You can't refer yourself")
+            if db.user_has_redeemed_referral(user_id):
+                raise HTTPException(status_code=400, detail="You've already used a referral")
+            coupon_id = "REFER33"
+            session_metadata["ref_code"] = ref_code
+            session_metadata["referrer_user_id"] = referrer_id
+
     try:
         base_url = "https://soundara.co" if os.getenv("ENVIRONMENT") == "production" else "http://localhost:5173"
 
-        session = stripe.checkout.Session.create(
+        session_kwargs = dict(
             mode="subscription",
             payment_method_types=["card"],
             line_items=[{
@@ -737,11 +760,12 @@ async def create_subscription_session(request: Request):
             },
             success_url=f"{base_url}/success?user={user_id}&subscription={plan}",
             cancel_url=f"{base_url}/pricing",
-            metadata={
-                "user_id": user_id,
-                "plan": plan
-            }
+            metadata=session_metadata,
         )
+        if coupon_id:
+            session_kwargs["discounts"] = [{"coupon": coupon_id}]
+
+        session = stripe.checkout.Session.create(**session_kwargs)
         return {"url": session.url}
     except Exception as e:
         log_error(
@@ -751,6 +775,56 @@ async def create_subscription_session(request: Request):
             endpoint="/create_subscription_session/"
         )
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# --------------------
+# Referrals
+# --------------------
+def _generate_ref_code(user_id: str) -> str:
+    """Short deterministic-ish but collision-resistant code."""
+    import secrets
+    suffix = secrets.token_hex(3).upper()  # 6 hex chars
+    return f"SND{suffix}"
+
+
+@app.post("/api/referral/generate")
+async def api_referral_generate(request: Request):
+    """Get or create a referral code for the caller. Paid subscribers only."""
+    data = await request.json()
+    user_id = validate_user_id(data.get("user_id"))
+
+    sub = db.get_subscription(user_id)
+    active_plans = ("pro", "pro_annual", "creator", "creator_annual", "unlimited", "limited")
+    if not sub or sub.get("plan") not in active_plans:
+        raise HTTPException(
+            status_code=403,
+            detail="Only paid subscribers can generate referral links",
+        )
+
+    code = db.get_referral_code_for_user(user_id)
+    if not code:
+        # Try a few times to avoid unlikely collision with another user's code.
+        for _ in range(5):
+            candidate = _generate_ref_code(user_id)
+            if not db.get_user_id_for_referral_code(candidate):
+                db.create_referral_code(user_id, candidate)
+                code = candidate
+                break
+        if not code:
+            raise HTTPException(status_code=500, detail="Could not generate referral code")
+
+    return {
+        "code": code,
+        "total_referrals": db.referral_count_for_user(user_id),
+    }
+
+
+@app.get("/api/referral/validate/{code}")
+async def api_referral_validate(code: str):
+    """Public check — does this referral code exist?"""
+    code = (code or "").strip().upper()
+    referrer_id = db.get_user_id_for_referral_code(code)
+    return {"valid": bool(referrer_id)}
 
 
 @app.post("/user_subscriptions/{user_id}/add")
