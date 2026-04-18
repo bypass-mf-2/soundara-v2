@@ -8,125 +8,134 @@ export default function Envision() {
   const [notes, setNotes] = useState("");
 
   const handleSubmit = (e) => {
-  e.preventDefault();
-  console.log({ name, email, interest, notes });
-};
+    e.preventDefault();
+    console.log({ name, email, interest, notes });
+  };
 
   return (
-    <div style={{ padding: "20px" }}>
-      <h2>Future Projection</h2>
-      <p>Here we show version one which hopes to come shortly after release
-        and version two which will come later on.
-      </p>
-      <h3>Soundara V1:</h3>
+    <div className="container">
+      <div className="prose">
+        <h1>Future Projection</h1>
+        <p>
+          Here we show version one which hopes to come shortly after release and version
+          two which will come later on.
+        </p>
 
-      <h4>Custom Frequencies:</h4>
-      <p>Instead of the preset frequencies, users will be able to input their 
-        own frequencies and create custom tracks. This will allow for more personalized
-        experiences and the ability to target specific brainwave states.
+        <h2>Soundara V1</h2>
+
+        <h4>Custom Frequencies</h4>
+        <p>
+          Instead of the preset frequencies, users will be able to input their own frequencies
+          and create custom tracks. This allows more personalized experiences and the ability to
+          target specific brainwave states.
         </p>
         <p>However this will come at a greater price per track due to customization.</p>
 
-        <h4>Specific Mode Playlists:</h4>
-      <p>Specific mode playlists will available like "Focus Mode" or "Sleep Mode" which 
-        will be curated by our team and based on user feedback. These playlists will be 
-        optimized for their specific use cases and will provide a more tailored experience
-         for users.</p>
+        <h4>Specific Mode Playlists</h4>
+        <p>
+          Specific mode playlists will be available — like "Focus Mode" or "Sleep Mode" —
+          curated by our team and based on user feedback. These playlists will be optimized for
+          their specific use cases.
+        </p>
         <p>These mode playlists will be free and selectable.</p>
 
-        <h3>Soundara V2:</h3>
+        <h2>Soundara V2</h2>
 
-      <h4>Search Database</h4>
-      <p>In version two, users will be able to search our database of tracks by specific
-        frequencies, moods, or use cases. This will allow users to easily find tracks that
-        fit their specific needs and preferences.</p>
-        <p>Additionally, when uploading a song/track, you can use the search function 
-          to find the song you want. Therefore making much easier to name the
-          and the author.
-          </p>
+        <h4>Search Database</h4>
+        <p>
+          Users will be able to search our database of tracks by specific frequencies, moods, or
+          use cases. This makes it easy to find tracks that fit specific needs and preferences.
+        </p>
+        <p>
+          When uploading a song, you'll also be able to use search to find the song you want —
+          making it easier to name the track and credit the author.
+        </p>
 
-        <h4>Additional Music tools</h4>
-      <p>Users will have a broader access to remix tools and beat creations. Allowing
-        for there own song creations.
-      </p>
-      <h4>Direct upload</h4>  
-      <p>Users who create original content either using the platform tools or from
-        another source will be able to directly upload their tracks to the platform and share
-        them with the community. This will foster a sense of community and allow for a wider variety
-        of tracks to be available on the platform.
-      </p>
-      <h4>Royalty</h4>  
-      <p>Following the direct upload, users will be able to profit from these
-        direct uploads and creations. This will incentivize users to create and share high-quality content on the platform, and will also allow them to earn money from their creations.
-      </p>
+        <h4>Additional Music Tools</h4>
+        <p>
+          Users will have broader access to remix tools and beat creations, allowing for their
+          own song creations.
+        </p>
 
-      <h3>Soundara V3</h3>
-      <h4>AI Generated Tracks</h4>
-      <p>In version three, we hope to implement AI generated tracks based on user preferences and feedback. This will allow for a more personalized and dynamic experience for users, as the AI will be able to create tracks that are tailored to their specific needs and preferences.</p>
-      <h4>Mobile App</h4>
-      <p>We are also planning to develop a mobile app for Soundara, which will allow users to access the platform on the go and create a more convenient experience for managing their binaural beats and meditation sessions.
-        This will be more convenient and mobile friendly for users who want to use the platform while traveling or away from their computer.
-      </p>
-      <h2>Bottom Line</h2>
-      <p>Overall, these future projections for Soundara aim to enhance the user experience by providing more customization options, a wider variety of tracks, and opportunities for users to create and share their own content. We are excited to continue developing and improving the platform based on user feedback and needs.</p>
-      <p>We will be releasing version one shortly after launch and version two will come later on as we continue to develop the platform.</p>
-      <p><strong>If you want to join the development team to improve Soundara, please contact us with the interest form below.</strong></p>
-      <p>Thank you for being a part of the Soundara community and we look forward to sharing these exciting updates with you in the future!</p>
-      {/* ===== Button to toggle survey form ===== */}
-      <button 
-        onClick={() => setShowForm(!showForm)}
-        style={{
-          padding: "10px 20px",
-          fontSize: "16px",
-          marginTop: "20px",
-          cursor: "pointer"
-        }}
-      >
-        {showForm ? "Close Survey" : "Join & Show Interest"}
-      </button>
+        <h4>Direct Upload</h4>
+        <p>
+          Users who create original content will be able to directly upload tracks to the platform
+          and share them with the community.
+        </p>
 
-      {/* ===== Survey Form ===== */}
-      {showForm && (
-        <form 
-          onSubmit={handleSubmit} 
-          style={{ marginTop: "20px", border: "1px solid #ccc", padding: "20px", borderRadius: "8px" }}
+        <h4>Royalty</h4>
+        <p>
+          Users will be able to profit from direct uploads and creations. This incentivizes
+          high-quality content and lets creators earn from their work.
+        </p>
+
+        <h2>Soundara V3</h2>
+
+        <h4>AI-Generated Tracks</h4>
+        <p>
+          We hope to implement AI-generated tracks based on user preferences and feedback,
+          allowing for a more personalized and dynamic experience.
+        </p>
+
+        <h4>Mobile App</h4>
+        <p>
+          We are planning to develop a mobile app so users can access the platform on the go
+          and manage their sessions conveniently.
+        </p>
+
+        <h2>Bottom Line</h2>
+        <p>
+          These future projections aim to enhance the user experience by providing more
+          customization, variety, and opportunities for users to create and share their own
+          content.
+        </p>
+        <p>
+          <strong>If you want to join the development team to improve Soundara, please contact us
+          with the interest form below.</strong>
+        </p>
+
+        <button
+          className="btn btn-primary"
+          style={{ marginTop: "24px" }}
+          onClick={() => setShowForm(!showForm)}
         >
-          <h3>Join Our Team Survey</h3>
-          <input 
-            type="text" 
-            placeholder="Your Name" 
-            value={name} 
-            onChange={e => setName(e.target.value)}
-            style={{ display:"block", marginBottom:"10px", width:"100%", padding:"8px" }}
-          />
-          <input 
-            type="email" 
-            placeholder="Email" 
-            value={email} 
-            onChange={e => setEmail(e.target.value)}
-            style={{ display:"block", marginBottom:"10px", width:"100%", padding:"8px" }}
-          />
-          <select 
-            value={interest} 
-            onChange={e => setInterest(e.target.value)}
-            style={{ display:"block", marginBottom:"10px", width:"100%", padding:"8px" }}
-          >
-            <option value="">Select your area of interest</option>
-            <option value="programming">Programming</option>
-            <option value="design">Design</option>
-            <option value="marketing">Marketing</option>
-            <option value="other">Other</option>
-          </select>
-          <textarea 
-            placeholder="Additional notes (optional)" 
-            value={notes} 
-            onChange={e => setNotes(e.target.value)}
-            style={{ display:"block", marginBottom:"10px", width:"100%", padding:"8px", height:"80px" }}
-          />
-          <button type="submit" style={{ padding:"10px 20px", cursor:"pointer" }}>Submit</button>
+          {showForm ? "Close Survey" : "Join & Show Interest"}
+        </button>
+      </div>
+
+      {showForm && (
+        <form onSubmit={handleSubmit} className="card" style={{ marginTop: "32px", maxWidth: "640px", margin: "32px auto 0" }}>
+          <h3 className="section-title" style={{ fontSize: "22px" }}>Join Our Team Survey</h3>
+          <div className="input-group">
+            <label className="input-label">Name</label>
+            <input type="text" className="input" value={name} onChange={e => setName(e.target.value)} />
+          </div>
+          <div className="input-group">
+            <label className="input-label">Email</label>
+            <input type="email" className="input" value={email} onChange={e => setEmail(e.target.value)} />
+          </div>
+          <div className="input-group">
+            <label className="input-label">Area of Interest</label>
+            <select className="input" value={interest} onChange={e => setInterest(e.target.value)}>
+              <option value="">Select...</option>
+              <option value="programming">Programming</option>
+              <option value="design">Design</option>
+              <option value="marketing">Marketing</option>
+              <option value="other">Other</option>
+            </select>
+          </div>
+          <div className="input-group">
+            <label className="input-label">Notes (optional)</label>
+            <textarea
+              className="input"
+              value={notes}
+              onChange={e => setNotes(e.target.value)}
+              style={{ minHeight: "100px", resize: "vertical" }}
+            />
+          </div>
+          <button type="submit" className="btn btn-primary">Submit</button>
         </form>
       )}
     </div>
-
   );
 }

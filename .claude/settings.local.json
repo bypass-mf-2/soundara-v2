@@ -6,7 +6,15 @@
       "Bash(echo \"exit: $?\")",
       "Bash(winget install:*)",
       "Bash(export PATH=\"/c/Program Files/GitHub CLI:$PATH\")",
-      "Bash(gh repo:*)"
+      "Bash(gh repo:*)",
+      "Bash(python -c \"import ast; ast.parse\\(open\\('backend/main.py'\\).read\\(\\)\\); print\\('main.py OK'\\)\")",
+      "Bash(python -c \"import ast; ast.parse\\(open\\('backend/db.py'\\).read\\(\\)\\); print\\('db.py OK'\\)\")",
+      "Bash(python -c \"import ast; ast.parse\\(open\\('backend/webhooks.py'\\).read\\(\\)\\); print\\('webhooks.py OK'\\)\")",
+      "Bash(python -c \"import ast; ast.parse\\(open\\('backend/create_coupons.py'\\).read\\(\\)\\); print\\('create_coupons.py OK'\\)\")",
+      "Bash(python -c \"import ast; ast.parse\\(open\\('backend/main.py', encoding='utf-8'\\).read\\(\\)\\); print\\('main.py OK'\\)\")",
+      "Bash(python -c \"import ast; ast.parse\\(open\\('backend/db.py', encoding='utf-8'\\).read\\(\\)\\); print\\('db.py OK'\\)\")",
+      "Bash(python -c \"import ast; ast.parse\\(open\\('backend/webhooks.py', encoding='utf-8'\\).read\\(\\)\\); print\\('webhooks.py OK'\\)\")",
+      "Bash(python -c \"import ast; ast.parse\\(open\\('backend/create_coupons.py', encoding='utf-8'\\).read\\(\\)\\); print\\('create_coupons.py OK'\\)\")"
     ]
   }
 }

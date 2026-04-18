@@ -10,6 +10,8 @@ import json
 import requests
 import stripe
 import time
+import uuid
+import hmac
 
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -131,33 +133,33 @@ SUBS_FILE = os.path.join(BASE_DIR, "user_subscriptions.json")
 FREE_USERS_FILE = os.path.join(BASE_DIR, "free_users.json")
 LOGS_DIR = os.path.join(BASE_DIR, "logs")
 
+# Community / Creator
+COMMUNITY_FILE = os.path.join(BASE_DIR, "community_uploads.json")
+COMMUNITY_FOLDER = os.path.join(BASE_DIR, "community_library")
+CREATOR_ACCOUNTS_FILE = os.path.join(BASE_DIR, "creator_accounts.json")
+VALID_GENRES = ["ambient", "electronic", "lo-fi", "classical", "meditation", "nature", "hip-hop", "rock", "pop", "other"]
+
+# Admin
+ADMIN_EMAIL = "trevorm.goodwill@gmail.com"
+ADMIN_API_TOKEN = os.getenv("ADMIN_API_TOKEN")
+
 stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
 MIN_PRICE_CENTS = 170
 
+# SQLite database
+DB_FILE = os.environ.get("DB_FILE") or os.path.join(BASE_DIR, "soundara.db")
+
 # Create necessary directories
 os.makedirs(LIBRARY_FOLDER, exist_ok=True)
+os.makedirs(COMMUNITY_FOLDER, exist_ok=True)
 os.makedirs(LOGS_DIR, exist_ok=True)
 
-# Initialize JSON files
-if not os.path.exists(PLAYLISTS_FILE):
-    with open(PLAYLISTS_FILE, "w") as f:
-        f.write("{}")
-
-if not os.path.exists(TRACK_FILE):
-    with open(TRACK_FILE, "w") as f:
-        f.write("[]")
-
-if not os.path.exists(SUBS_FILE):
-    with open(SUBS_FILE, "w") as f:
-        f.write("{}")
-
-if not os.path.exists(USER_LIBRARY_FILE):
-    with open(USER_LIBRARY_FILE, "w") as f:
-        f.write("{}")
-
-if not os.path.exists(FREE_USERS_FILE):
-    with open(FREE_USERS_FILE, "w") as f:
-        json.dump([], f)
+# Initialize database (creates schema on first run)
+try:
+    from backend import db
+except ImportError:
+    import db
+db.init(DB_FILE)
 
 # --------------------
 # FastAPI setup
@@ -182,14 +184,8 @@ app.add_middleware(
     allowed_hosts=["soundara.co", "www.soundara.co", "localhost", "127.0.0.1", "*"]
 )
 
-# Load free users
-try:
-    with open(FREE_USERS_FILE, "r") as f:
-        FREE_USERS = json.load(f)
-except (FileNotFoundError, json.JSONDecodeError):
-    FREE_USERS = []
-    with open(FREE_USERS_FILE, "w") as f:
-        json.dump(FREE_USERS, f)
+# Load free users (snapshot; call db.load_free_users() if you need a fresh read)
+FREE_USERS = db.load_free_users()
 
 # --------------------
 # Wave mode configs
@@ -283,17 +279,7 @@ def check_subscription(user_id: str):
     - None if no active subscription
     - dict with {'type': 'limited' or 'unlimited', 'remaining': int} if active
     """
-    if not os.path.exists(SUBS_FILE):
-        return None
-
-    with open(SUBS_FILE, "r") as f:
-        subs = json.load(f)
-
-    sub = subs.get(user_id)
-    if not sub:
-        return None
-
-    return sub
+    return db.get_subscription(user_id)
 
 
 def make_binaural_from_file(path: str, freq_shift_hz: float):
@@ -311,7 +297,7 @@ def make_binaural_from_file(path: str, freq_shift_hz: float):
     return stereo, sr
 
 
-def create_preview(full_path, preview_path, seconds=7):
+def create_preview(full_path, preview_path, seconds=15):
     audio = AudioSegment.from_file(full_path)
     preview = audio[:seconds * 1000]
     preview.export(preview_path, format="wav")
@@ -329,13 +315,6 @@ def add_to_library(track_name: str, full_path: str, mode: str, custom_freqs=None
     and saves metadata in LIBRARY_FILE.
     Returns dict with filenames for frontend.
     """
-    # Load existing library
-    if os.path.exists(LIBRARY_FILE):
-        with open(LIBRARY_FILE, "r") as f:
-            library = json.load(f)
-    else:
-        library = []
-
     # Safe track name for filenames
     safe_name = re.sub(r"[^\w\-]", "_", track_name)
     timestamp_str = datetime.now().strftime('%Y%m%d%H%M%S')
@@ -345,7 +324,7 @@ def add_to_library(track_name: str, full_path: str, mode: str, custom_freqs=None
     preview_path = os.path.join(LIBRARY_FOLDER, preview_filename)
 
     # Generate 7-second preview
-    create_preview(full_path, preview_path, seconds=7)
+    create_preview(full_path, preview_path, seconds=15)
 
     # Move full file into library folder (if not already there)
     final_full_path = os.path.join(LIBRARY_FOLDER, os.path.basename(full_path))
@@ -364,10 +343,7 @@ def add_to_library(track_name: str, full_path: str, mode: str, custom_freqs=None
         "timestamp": datetime.now().isoformat(),
         "plays": 0
     }
-    library.append(library_entry)
-
-    with open(LIBRARY_FILE, "w") as f:
-        json.dump(library, f, indent=2)
+    db.upsert_track(library_entry)
 
     # Return info needed for frontend immediately
     return {
@@ -419,68 +395,79 @@ async def health_check():
     return {"status": "healthy", "timestamp": datetime.now().isoformat()}
 
 
+# --------------------
+# Public demo (no auth)
+# --------------------
+DEMO_MODES = [
+    {"id": "gamma",    "name": "Gamma",    "hz": "30-100 Hz", "icon": "🧠", "desc": "High-level cognitive functioning"},
+    {"id": "alpha",    "name": "Alpha",    "hz": "8-12 Hz",   "icon": "✨", "desc": "Relaxed focus & creativity"},
+    {"id": "beta",     "name": "Beta",     "hz": "12-30 Hz",  "icon": "⚡", "desc": "Alertness & problem-solving"},
+    {"id": "theta",    "name": "Theta",    "hz": "4-8 Hz",    "icon": "🧘", "desc": "Deep meditation & intuition"},
+    {"id": "delta",    "name": "Delta",    "hz": "0.5-4 Hz",  "icon": "😴", "desc": "Deep sleep & recovery"},
+    {"id": "schumann", "name": "Schumann", "hz": "7.83 Hz",   "icon": "🌍", "desc": "Earth's natural frequency"},
+]
+DEMO_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets")
+
+
+@app.get("/demo/list")
+async def demo_list():
+    """Return metadata for the 6 demo clips. Only includes entries whose file exists."""
+    out = []
+    for m in DEMO_MODES:
+        path = os.path.join(DEMO_DIR, f"demo_{m['id']}.wav")
+        if os.path.exists(path):
+            out.append({**m, "url": f"/demo/file/demo_{m['id']}.wav"})
+    return out
+
+
+@app.get("/demo/file/{filename}")
+async def demo_file(filename: str):
+    """Serve a pre-generated demo clip."""
+    safe = sanitize_filename(filename)
+    if not safe.startswith("demo_") or not safe.endswith(".wav"):
+        raise HTTPException(status_code=404, detail="Not found")
+    path = os.path.join(DEMO_DIR, safe)
+    if not os.path.exists(path):
+        raise HTTPException(status_code=404, detail="Not found")
+    return FileResponse(path, media_type="audio/wav", filename=safe)
+
+
 @app.get("/user_playlists/{user_id}")
 async def get_user_playlists(user_id: str):
     """Get user's playlists"""
     user_id = validate_user_id(user_id)
-    
-    with open(PLAYLISTS_FILE, "r") as f:
-        data = json.load(f)
-    return data.get(user_id, {"default": []})
+    pls = db.get_playlists(user_id)
+    return pls if pls else {"default": []}
 
 
 @app.post("/user_playlists/{user_id}")
 async def save_user_playlists(user_id: str, request: Request):
     """Save user's playlists"""
     user_id = validate_user_id(user_id)
-    
     data = await request.json()
-    with open(PLAYLISTS_FILE, "r") as f:
-        all_playlists = json.load(f)
-    all_playlists[user_id] = data
-    with open(PLAYLISTS_FILE, "w") as f:
-        json.dump(all_playlists, f, indent=2)
+    db.save_playlists(user_id, data)
     return {"status": "ok"}
 
 
 @app.get("/library/")
 async def get_library():
     """Get public library of tracks"""
-    try:
-        with open(LIBRARY_FILE, "r") as f:
-            return json.load(f)
-    except:
-        return []
+    return db.load_library()
 
 
 @app.get("/user_library/{user_id}")
 async def get_user_library(user_id: str):
     """Get user's purchased library"""
     user_id = validate_user_id(user_id)
-    
-    with open(USER_LIBRARY_FILE, "r") as f:
-        data = json.load(f)
-    return data.get(user_id, [])
+    return db.get_user_library(user_id)
 
 
 @app.post("/user_library/{user_id}/add")
 async def add_to_user_library(user_id: str, request: Request):
     """Add track to user's library"""
     user_id = validate_user_id(user_id)
-    
     data = await request.json()
-    
-    with open(USER_LIBRARY_FILE, "r") as f:
-        library_data = json.load(f)
-    
-    if user_id not in library_data:
-        library_data[user_id] = []
-    
-    library_data[user_id].append(data)
-    
-    with open(USER_LIBRARY_FILE, "w") as f:
-        json.dump(library_data, f, indent=2)
-    
+    db.add_to_user_library(user_id, data)
     return {"status": "ok"}
 
 
@@ -604,23 +591,15 @@ async def track_event(request: Request):
     data = await request.json()
     data["timestamp"] = datetime.now().isoformat()
 
-    with open(TRACK_FILE, "r") as f:
-        events = json.load(f)
-    events.append(data)
-    with open(TRACK_FILE, "w") as f:
-        json.dump(events, f, indent=2)
+    db.append_event(data)
 
     if data.get("type") == "audio_play" and "track" in data:
         track_name = data["track"]
-        if os.path.exists(LIBRARY_FILE):
-            with open(LIBRARY_FILE, "r") as f:
-                library = json.load(f)
-            for track in library:
-                if track["name"] == track_name:
-                    track["plays"] += 1
-                    break
-            with open(LIBRARY_FILE, "w") as f:
-                json.dump(library, f, indent=2)
+        library = db.load_library()
+        for track in library:
+            if track["name"] == track_name:
+                db.upsert_track({**track, "plays": track.get("plays", 0) + 1})
+                break
 
     return {"status": "ok"}
 
@@ -651,16 +630,7 @@ async def create_checkout_session(request: Request):
         if user_email in FREE_USERS:
             logger.info(f"Free user detected: {user_email}")
 
-            with open(USER_LIBRARY_FILE, "r") as f:
-                library_data = json.load(f)
-
-            if user_id not in library_data:
-                library_data[user_id] = []
-
-            library_data[user_id].append(track)
-
-            with open(USER_LIBRARY_FILE, "w") as f:
-                json.dump(library_data, f, indent=2)
+            db.add_to_user_library(user_id, track)
 
             return {
                 "url": None,
@@ -725,37 +695,80 @@ async def create_checkout_session(request: Request):
 async def create_subscription_session(request: Request):
     """Create subscription checkout session"""
     data = await request.json()
-    
+
     user_id = data.get("user_id")
     plan = data.get("plan")
+    promo_code = (data.get("promo_code") or "").strip().upper() or None
+    ref_code = (data.get("ref_code") or "").strip().upper() or None
 
     if not user_id or not plan:
         raise HTTPException(status_code=400, detail="Missing user_id or plan")
-    
+
     user_id = validate_user_id(user_id)
 
+    # Current plan names: "pro" / "pro_annual" / "creator" / "creator_annual"
+    # Legacy names ("limited" / "unlimited") kept for backward-compat.
     PRICE_IDS = {
-        "limited": os.getenv("STRIPE_PRICE_LIMITED", "price_123limited"),
-        "unlimited": os.getenv("STRIPE_PRICE_UNLIMITED", "price_456unlimited")
+        "pro":             os.getenv("STRIPE_PRICE_PRO_MONTHLY") or os.getenv("STRIPE_PRICE_PRO") or os.getenv("STRIPE_PRICE_LIMITED"),
+        "pro_annual":      os.getenv("STRIPE_PRICE_PRO_ANNUAL"),
+        "creator":         os.getenv("STRIPE_PRICE_CREATOR_MONTHLY") or os.getenv("STRIPE_PRICE_CREATOR") or os.getenv("STRIPE_PRICE_UNLIMITED"),
+        "creator_annual":  os.getenv("STRIPE_PRICE_CREATOR_ANNUAL"),
+        "limited":         os.getenv("STRIPE_PRICE_LIMITED") or os.getenv("STRIPE_PRICE_PRO_MONTHLY"),
+        "unlimited":       os.getenv("STRIPE_PRICE_UNLIMITED") or os.getenv("STRIPE_PRICE_CREATOR_MONTHLY"),
     }
+
+    if plan not in PRICE_IDS:
+        raise HTTPException(status_code=400, detail=f"Unknown plan: {plan}")
+
+    if not PRICE_IDS[plan]:
+        raise HTTPException(status_code=500, detail=f"Stripe price ID not configured for plan: {plan}")
+
+    # Resolve discount. Monthly plans only; annual plans ignore both codes silently-with-log.
+    is_monthly_plan = plan in ("pro", "creator", "limited", "unlimited")
+    coupon_id: str | None = None
+    session_metadata: dict[str, str] = {"user_id": user_id, "plan": plan}
+
+    if is_monthly_plan:
+        if promo_code == "LAUNCH50":
+            coupon_id = "LAUNCH50"
+            session_metadata["promo_code"] = "LAUNCH50"
+        elif ref_code:
+            referrer_id = db.get_user_id_for_referral_code(ref_code)
+            if not referrer_id:
+                raise HTTPException(status_code=400, detail="Invalid referral code")
+            if referrer_id == user_id:
+                raise HTTPException(status_code=400, detail="You can't refer yourself")
+            if db.user_has_redeemed_referral(user_id):
+                raise HTTPException(status_code=400, detail="You've already used a referral")
+            coupon_id = "REFER33"
+            session_metadata["ref_code"] = ref_code
+            session_metadata["referrer_user_id"] = referrer_id
 
     try:
         base_url = "https://soundara.co" if os.getenv("ENVIRONMENT") == "production" else "http://localhost:5173"
-        
-        session = stripe.checkout.Session.create(
+
+        session_kwargs = dict(
             mode="subscription",
             payment_method_types=["card"],
             line_items=[{
                 "price": PRICE_IDS[plan],
                 "quantity": 1
             }],
+            subscription_data={
+                "trial_period_days": 3,
+                "metadata": {
+                    "user_id": user_id,
+                    "plan": plan,
+                },
+            },
             success_url=f"{base_url}/success?user={user_id}&subscription={plan}",
             cancel_url=f"{base_url}/pricing",
-            metadata={
-                "user_id": user_id,
-                "plan": plan
-            }
+            metadata=session_metadata,
         )
+        if coupon_id:
+            session_kwargs["discounts"] = [{"coupon": coupon_id}]
+
+        session = stripe.checkout.Session.create(**session_kwargs)
         return {"url": session.url}
     except Exception as e:
         log_error(
@@ -767,23 +780,63 @@ async def create_subscription_session(request: Request):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+# --------------------
+# Referrals
+# --------------------
+def _generate_ref_code(user_id: str) -> str:
+    """Short deterministic-ish but collision-resistant code."""
+    import secrets
+    suffix = secrets.token_hex(3).upper()  # 6 hex chars
+    return f"SND{suffix}"
+
+
+@app.post("/api/referral/generate")
+async def api_referral_generate(request: Request):
+    """Get or create a referral code for the caller. Paid subscribers only."""
+    data = await request.json()
+    user_id = validate_user_id(data.get("user_id"))
+
+    sub = db.get_subscription(user_id)
+    active_plans = ("pro", "pro_annual", "creator", "creator_annual", "unlimited", "limited")
+    if not sub or sub.get("plan") not in active_plans:
+        raise HTTPException(
+            status_code=403,
+            detail="Only paid subscribers can generate referral links",
+        )
+
+    code = db.get_referral_code_for_user(user_id)
+    if not code:
+        # Try a few times to avoid unlikely collision with another user's code.
+        for _ in range(5):
+            candidate = _generate_ref_code(user_id)
+            if not db.get_user_id_for_referral_code(candidate):
+                db.create_referral_code(user_id, candidate)
+                code = candidate
+                break
+        if not code:
+            raise HTTPException(status_code=500, detail="Could not generate referral code")
+
+    return {
+        "code": code,
+        "total_referrals": db.referral_count_for_user(user_id),
+    }
+
+
+@app.get("/api/referral/validate/{code}")
+async def api_referral_validate(code: str):
+    """Public check — does this referral code exist?"""
+    code = (code or "").strip().upper()
+    referrer_id = db.get_user_id_for_referral_code(code)
+    return {"valid": bool(referrer_id)}
+
+
 @app.post("/user_subscriptions/{user_id}/add")
 async def add_subscription(user_id: str, request: Request):
     """Add/update user subscription"""
     user_id = validate_user_id(user_id)
     
     data = await request.json()
-    if os.path.exists(SUBS_FILE):
-        with open(SUBS_FILE, "r") as f:
-            subs = json.load(f)
-    else:
-        subs = {}
-
-    subs[user_id] = data
-
-    with open(SUBS_FILE, "w") as f:
-        json.dump(subs, f, indent=2)
-
+    db.set_subscription(user_id, data)
     return {"status": "ok"}
 
 
@@ -793,16 +846,9 @@ async def play_track(track_name: str, user_id: str):
     track_name = validate_track_name(track_name)
     user_id = validate_user_id(user_id)
     
-    with open(LIBRARY_FILE, "r") as f:
-        library = json.load(f)
-    
-    with open(USER_LIBRARY_FILE, "r") as f:
-        user_library = json.load(f)
-    user_tracks = user_library.get(user_id, [])
-
-    with open(SUBS_FILE, "r") as f:
-        subs = json.load(f)
-    user_sub = subs.get(user_id)
+    library = db.load_library()
+    user_tracks = db.get_user_library(user_id)
+    user_sub = db.get_subscription(user_id)
 
     track = next((t for t in library if t["name"] == track_name), None)
     if not track:
@@ -813,13 +859,15 @@ async def play_track(track_name: str, user_id: str):
 
     if user_sub:
         plan = user_sub["plan"]
-        if plan == "unlimited":
+        # Current plans (pro, creator, and their annual variants) get unlimited playback.
+        # "unlimited" is the legacy name for creator; grandfathered in.
+        if plan in ("pro", "pro_annual", "creator", "creator_annual", "unlimited"):
             is_subscribed = True
         elif plan == "limited" and user_sub["tracks_used"] < 20:
+            # Legacy limited plan — keep the 20-track cap for grandfathered users
             is_subscribed = True
             user_sub["tracks_used"] += 1
-            with open(SUBS_FILE, "w") as f:
-                json.dump(subs, f, indent=2)
+            db.set_subscription(user_id, user_sub)
 
     filename = get_audio_file(track, has_paid or is_subscribed)
     path = os.path.join(LIBRARY_FOLDER, filename)
@@ -836,31 +884,502 @@ async def stripe_webhook(request: Request):
     return await handle_stripe_webhook(request)
 
 
+# --------------------
+# Admin authentication
+# --------------------
+def _require_admin(request: Request):
+    """Constant-time check of the X-Admin-Token header against the env token."""
+    if not ADMIN_API_TOKEN:
+        raise HTTPException(status_code=503, detail="Admin API not configured")
+    provided = request.headers.get("x-admin-token", "")
+    if not hmac.compare_digest(provided, ADMIN_API_TOKEN):
+        raise HTTPException(status_code=403, detail="Not authorized")
+
+
 @app.get("/admin/stats")
-async def get_stats(admin_user = Depends(verify_admin)):
-    """Get platform statistics (admin only)"""
+async def get_admin_stats(request: Request):
+    """Get full platform statistics (admin only)."""
+    _require_admin(request)
     try:
-        with open(LIBRARY_FILE, "r") as f:
-            library = json.load(f)
-        
-        with open(USER_LIBRARY_FILE, "r") as f:
-            user_library = json.load(f)
-        
-        with open(TRACK_FILE, "r") as f:
-            events = json.load(f)
-        
+        library = db.load_library()
+        user_library = db.load_user_library_all()
+        events = db.load_events()
+        subs = db.get_subscriptions_all()
+
         total_plays = sum(track.get("plays", 0) for track in library)
-        total_users = len(user_library)
-        total_tracks = len(library)
-        
+
+        event_types = {}
+        unique_visitors = set()
+        daily_events = {}
+        for ev in events:
+            t = ev.get("type", "unknown")
+            event_types[t] = event_types.get(t, 0) + 1
+            if ev.get("id") or ev.get("user"):
+                unique_visitors.add(ev.get("id") or ev.get("user"))
+            date = ev.get("timestamp", "")[:10]
+            if date:
+                daily_events[date] = daily_events.get(date, 0) + 1
+
+        recent_events = events[-50:][::-1]
+
+        community_tracks = db.load_community()
+        pending_uploads = [t for t in community_tracks if t.get("status") == "pending"]
+
         return {
-            "total_tracks": total_tracks,
-            "total_users": total_users,
+            "total_tracks": len(library),
+            "total_users": len(user_library),
             "total_plays": total_plays,
-            "total_events": len(events)
+            "total_events": len(events),
+            "unique_visitors": len(unique_visitors),
+            "active_subscriptions": len(subs),
+            "event_breakdown": event_types,
+            "daily_events": daily_events,
+            "recent_events": recent_events,
+            "pending_uploads": pending_uploads,
+            "library": library,
+            "subscriptions": subs,
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# --------------------
+# Community uploads
+# --------------------
+@app.post("/community/upload/")
+async def community_upload(
+    request: Request,
+    file: UploadFile = File(...),
+    track_name: str = Form(...),
+    artist_name: str = Form(...),
+    genre: str = Form(...),
+    description: str = Form(""),
+    user_id: str = Form(...),
+):
+    """Upload original content for community sharing (pending moderation)."""
+    track_name = validate_track_name(track_name)
+    user_id = validate_user_id(user_id)
+    genre = genre.lower().strip()
+    if genre not in VALID_GENRES:
+        raise HTTPException(status_code=400, detail=f"Invalid genre. Must be one of: {', '.join(VALID_GENRES)}")
+    description = description[:500].strip()
+
+    validate_file_extension(file.filename)
+    tmp_path = os.path.join(
+        BASE_DIR,
+        f"temp_community_{uuid.uuid4().hex}_{sanitize_filename(file.filename)}",
+    )
+    try:
+        with open(tmp_path, "wb") as f:
+            content = await file.read()
+            f.write(content)
+        validate_file_size(tmp_path)
+        validate_audio(tmp_path)
+
+        track_id = str(uuid.uuid4())
+        safe_name = re.sub(r"[^\w\-]", "_", track_name)
+        timestamp_str = datetime.now().strftime('%Y%m%d%H%M%S')
+        community_filename = f"community_{safe_name}_{timestamp_str}.wav"
+        community_path = os.path.join(COMMUNITY_FOLDER, community_filename)
+
+        data, sr = sf.read(tmp_path)
+        sf.write(community_path, data, sr)
+
+        preview_filename = f"community_preview_{safe_name}_{timestamp_str}.wav"
+        preview_path = os.path.join(COMMUNITY_FOLDER, preview_filename)
+        create_preview(community_path, preview_path, seconds=15)
+
+        entry = {
+            "id": track_id,
+            "name": track_name,
+            "artist": artist_name[:100],
+            "artist_id": user_id,
+            "genre": genre,
+            "description": description,
+            "filename": community_filename,
+            "filename_preview": preview_filename,
+            "size_bytes": os.path.getsize(community_path),
+            "timestamp": datetime.now().isoformat(),
+            "plays": 0,
+            "status": "pending",
+            "is_binaural": False,
+        }
+        db.add_community_upload(entry)
+
+        return {"status": "success", "track_id": track_id, "message": "Track uploaded and pending review"}
+    finally:
+        if os.path.exists(tmp_path):
+            os.remove(tmp_path)
+
+
+@app.get("/community/")
+async def get_community_tracks():
+    """List approved community tracks."""
+    return [t for t in db.load_community() if t.get("status") == "approved"]
+
+
+@app.get("/community/all/{user_id}")
+async def get_user_community_tracks(user_id: str):
+    """Get all tracks uploaded by a specific user (any status)."""
+    user_id = validate_user_id(user_id)
+    return [t for t in db.load_community() if t.get("artist_id") == user_id]
+
+
+@app.get("/community/file/{filename}")
+async def serve_community_file(filename: str):
+    """Serve a community audio file."""
+    safe = sanitize_filename(filename)
+    path = os.path.join(COMMUNITY_FOLDER, safe)
+    if not os.path.exists(path):
+        raise HTTPException(status_code=404, detail="File not found")
+    return FileResponse(path, media_type="audio/wav", filename=safe)
+
+
+@app.post("/community/moderate/{track_id}")
+async def moderate_community_track(track_id: str, request: Request):
+    """Admin approve/reject community track."""
+    _require_admin(request)
+    body = await request.json()
+    action = body.get("action", "").lower()
+    if action not in ("approved", "rejected"):
+        raise HTTPException(status_code=400, detail="Action must be 'approved' or 'rejected'")
+
+    if not db.set_community_status(track_id, action):
+        raise HTTPException(status_code=404, detail="Track not found")
+
+    return {"status": "success", "track_id": track_id, "action": action}
+
+
+# --------------------
+# Creator (Stripe Connect)
+# --------------------
+@app.post("/creator/onboard")
+async def creator_onboard(request: Request):
+    """Create a Stripe Connect Express account and onboarding link."""
+    body = await request.json()
+    user_id = validate_user_id(body.get("user_id", ""))
+    user_email = body.get("email", "")
+
+    try:
+        account = stripe.Account.create(
+            type="express",
+            email=user_email,
+            capabilities={"transfers": {"requested": True}},
+        )
+
+        db.set_creator_account(user_id, {
+            "stripe_account_id": account.id,
+            "onboarded": False,
+            "name": body.get("name", ""),
+            "email": user_email,
+        })
+
+        base_url = os.getenv("FRONTEND_URL", "http://localhost:5173")
+        account_link = stripe.AccountLink.create(
+            account=account.id,
+            refresh_url=f"{base_url}/creator",
+            return_url=f"{base_url}/creator",
+            type="account_onboarding",
+        )
+        return {"status": "success", "url": account_link.url}
+    except stripe.error.StripeError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.get("/creator/onboard/status/{user_id}")
+async def creator_onboard_status(user_id: str):
+    """Check if creator has completed Stripe Connect onboarding."""
+    user_id = validate_user_id(user_id)
+    acct = db.get_creator_account(user_id)
+    if not acct:
+        return {"onboarded": False, "has_account": False}
+
+    account_id = acct["stripe_account_id"]
+    try:
+        account = stripe.Account.retrieve(account_id)
+        is_onboarded = account.charges_enabled or account.details_submitted
+        acct["onboarded"] = is_onboarded
+        db.set_creator_account(user_id, acct)
+        return {"onboarded": is_onboarded, "has_account": True}
+    except stripe.error.StripeError:
+        return {"onboarded": False, "has_account": True}
+
+
+@app.get("/creator/dashboard/{user_id}")
+async def creator_dashboard(user_id: str):
+    """Get creator dashboard: uploaded tracks, plays, and Stripe balance."""
+    user_id = validate_user_id(user_id)
+
+    my_tracks = [t for t in db.load_community() if t.get("artist_id") == user_id]
+    total_plays = sum(t.get("plays", 0) for t in my_tracks)
+
+    balance_available = 0
+    balance_pending = 0
+    acct = db.get_creator_account(user_id)
+    if acct and acct.get("onboarded"):
+        try:
+            balance = stripe.Balance.retrieve(stripe_account=acct["stripe_account_id"])
+            for b in balance.available:
+                balance_available += b.amount
+            for b in balance.pending:
+                balance_pending += b.amount
+        except stripe.error.StripeError:
+            pass
+
+    return {
+        "tracks": my_tracks,
+        "total_plays": total_plays,
+        "balance_available_cents": balance_available,
+        "balance_pending_cents": balance_pending,
+    }
+
+
+@app.post("/create_community_checkout/")
+async def create_community_checkout(request: Request):
+    """Stripe checkout for a community track with a 70/30 split to the creator."""
+    body = await request.json()
+    track_id = body.get("track_id", "")
+    user_id = validate_user_id(body.get("user_id", ""))
+
+    track = next((t for t in db.load_community() if t["id"] == track_id and t["status"] == "approved"), None)
+    if not track:
+        raise HTTPException(status_code=404, detail="Track not found or not approved")
+
+    price_cents = calculate_price(track["size_bytes"])
+
+    creator_id = track["artist_id"]
+    acct = db.get_creator_account(creator_id)
+    if not acct or not acct.get("onboarded"):
+        raise HTTPException(status_code=400, detail="Creator has not completed payment setup")
+
+    creator_stripe_id = acct["stripe_account_id"]
+    application_fee = int(price_cents * 0.30)
+
+    base_url = os.getenv("FRONTEND_URL", "http://localhost:5173")
+    try:
+        session = stripe.checkout.Session.create(
+            payment_method_types=["card"],
+            line_items=[{
+                "price_data": {
+                    "currency": "usd",
+                    "product_data": {"name": f"{track['name']} by {track['artist']}"},
+                    "unit_amount": price_cents,
+                },
+                "quantity": 1,
+            }],
+            mode="payment",
+            success_url=f"{base_url}/success?track_id={track_id}&user={user_id}",
+            cancel_url=f"{base_url}/tools",
+            payment_intent_data={
+                "application_fee_amount": application_fee,
+                "transfer_data": {"destination": creator_stripe_id},
+            },
+            metadata={
+                "user_id": user_id,
+                "track_id": track_id,
+                "type": "community_purchase",
+            },
+        )
+        return {"url": session.url}
+    except stripe.error.StripeError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+# --------------------
+# Community search
+# --------------------
+@app.get("/community/search")
+async def community_search(q: str = "", genre: str = "", limit: int = 50):
+    """Search community tracks by free-text query and/or genre."""
+    results = [t for t in db.load_community() if t.get("status") == "approved"]
+    if genre:
+        results = [t for t in results if t.get("genre", "").lower() == genre.lower()]
+    if q:
+        ql = q.lower()
+        results = [
+            t for t in results
+            if ql in (t.get("name", "") or "").lower()
+            or ql in (t.get("artist", "") or "").lower()
+            or ql in (t.get("description", "") or "").lower()
+        ]
+    return results[:max(1, min(limit, 200))]
+
+
+# --------------------
+# Favorites
+# --------------------
+@app.post("/favorites/toggle")
+async def favorites_toggle(request: Request):
+    body = await request.json()
+    user_id = validate_user_id(body.get("user_id", ""))
+    track_id = body.get("track_id", "")
+    kind = body.get("kind", "")
+    if kind not in ("community", "library"):
+        raise HTTPException(status_code=400, detail="kind must be 'community' or 'library'")
+    if not track_id:
+        raise HTTPException(status_code=400, detail="track_id required")
+    now_favorited = db.toggle_favorite(user_id, track_id, kind)
+    count = db.favorite_count(track_id, kind)
+    return {"favorited": now_favorited, "count": count}
+
+
+@app.get("/favorites/{user_id}")
+async def favorites_list(user_id: str):
+    user_id = validate_user_id(user_id)
+    favs = db.list_user_favorites(user_id)
+
+    community = db.load_community()
+    community_by_id = {t["id"]: t for t in community}
+    library = db.load_library()
+    library_by_id = {t.get("filename_full"): t for t in library}
+
+    hydrated = []
+    for f in favs:
+        if f["kind"] == "community":
+            t = community_by_id.get(f["track_id"])
+        else:
+            t = library_by_id.get(f["track_id"])
+        if t:
+            hydrated.append({**t, "kind": f["kind"], "favorited_at": f["added_at"]})
+    return hydrated
+
+
+@app.get("/favorites/ids/{user_id}/{kind}")
+async def favorites_ids(user_id: str, kind: str):
+    """Fast membership lookup so the frontend can render filled/empty hearts."""
+    user_id = validate_user_id(user_id)
+    if kind not in ("community", "library"):
+        raise HTTPException(status_code=400, detail="kind must be 'community' or 'library'")
+    return list(db.user_favorite_ids(user_id, kind))
+
+
+# --------------------
+# Artist profile + follows
+# --------------------
+@app.get("/artist/{user_id}")
+async def artist_profile(user_id: str, viewer_id: str | None = None):
+    user_id = validate_user_id(user_id)
+    profile = db.get_profile(user_id) or {"user_id": user_id, "display_name": None, "bio": None, "picture": None}
+    tracks = [t for t in db.load_community() if t.get("artist_id") == user_id and t.get("status") == "approved"]
+    return {
+        "profile": profile,
+        "tracks": tracks,
+        "follower_count": db.follower_count(user_id),
+        "is_following": db.is_following(viewer_id, user_id) if viewer_id else False,
+    }
+
+
+@app.put("/artist/{user_id}")
+async def update_artist_profile(user_id: str, request: Request):
+    user_id = validate_user_id(user_id)
+    body = await request.json()
+    viewer_id = body.get("viewer_id")
+    if viewer_id != user_id:
+        raise HTTPException(status_code=403, detail="Can only edit your own profile")
+    db.upsert_profile(
+        user_id,
+        display_name=(body.get("display_name") or None),
+        bio=(body.get("bio") or None),
+        picture=(body.get("picture") or None),
+    )
+    return {"status": "ok"}
+
+
+@app.post("/artist/{user_id}/follow")
+async def follow_artist(user_id: str, request: Request):
+    user_id = validate_user_id(user_id)
+    body = await request.json()
+    follower_id = validate_user_id(body.get("follower_id", ""))
+    if follower_id == user_id:
+        raise HTTPException(status_code=400, detail="Cannot follow yourself")
+    following = db.toggle_follow(follower_id, user_id)
+    return {"following": following, "follower_count": db.follower_count(user_id)}
+
+
+# --------------------
+# Feedback loop
+# --------------------
+@app.post("/feedback")
+async def submit_feedback(request: Request):
+    body = await request.json()
+    user_id = validate_user_id(body.get("user_id", ""))
+    track_id = body.get("track_id", "")
+    mode = body.get("mode", "")
+    rating = int(body.get("rating", 0))
+    session_minutes = int(body.get("session_minutes", 0))
+    if rating not in (-1, 0, 1):
+        raise HTTPException(status_code=400, detail="rating must be -1, 0, or 1")
+    db.add_feedback(user_id, track_id, mode, rating, session_minutes)
+    return {"status": "ok"}
+
+
+@app.get("/feedback/aggregate")
+async def feedback_stats():
+    """Public aggregate. Powers marketing claims like '97% of Alpha listeners...'"""
+    return db.feedback_aggregate()
+
+
+# --------------------
+# Spotify proxy (track name autocomplete)
+# --------------------
+_SPOTIFY_TOKEN_CACHE = {"token": None, "expires_at": 0}
+
+
+def _spotify_token() -> str | None:
+    import base64
+    import time as _time
+    cid = os.getenv("SPOTIFY_CLIENT_ID")
+    secret = os.getenv("SPOTIFY_CLIENT_SECRET")
+    if not cid or not secret:
+        return None
+    now = _time.time()
+    if _SPOTIFY_TOKEN_CACHE["token"] and _SPOTIFY_TOKEN_CACHE["expires_at"] > now + 10:
+        return _SPOTIFY_TOKEN_CACHE["token"]
+    auth = base64.b64encode(f"{cid}:{secret}".encode()).decode()
+    resp = requests.post(
+        "https://accounts.spotify.com/api/token",
+        headers={"Authorization": f"Basic {auth}", "Content-Type": "application/x-www-form-urlencoded"},
+        data={"grant_type": "client_credentials"},
+        timeout=10,
+    )
+    if resp.status_code != 200:
+        return None
+    data = resp.json()
+    _SPOTIFY_TOKEN_CACHE["token"] = data["access_token"]
+    _SPOTIFY_TOKEN_CACHE["expires_at"] = now + data.get("expires_in", 3600)
+    return _SPOTIFY_TOKEN_CACHE["token"]
+
+
+@app.get("/spotify/search")
+async def spotify_search(q: str, limit: int = 6):
+    """Lightweight Spotify track search for autocomplete. Returns [] if not configured."""
+    token = _spotify_token()
+    if not token or not q:
+        return []
+    try:
+        resp = requests.get(
+            "https://api.spotify.com/v1/search",
+            headers={"Authorization": f"Bearer {token}"},
+            params={"q": q, "type": "track", "limit": max(1, min(limit, 10))},
+            timeout=10,
+        )
+        if resp.status_code != 200:
+            return []
+        items = resp.json().get("tracks", {}).get("items", [])
+        return [
+            {
+                "id": t.get("id"),
+                "name": t.get("name"),
+                "artist": ", ".join(a.get("name", "") for a in (t.get("artists") or [])),
+                "album": (t.get("album") or {}).get("name"),
+                "image": ((t.get("album") or {}).get("images") or [{}])[-1].get("url"),
+                "preview_url": t.get("preview_url"),
+            }
+            for t in items
+            if t
+        ]
+    except Exception:
+        return []
 
 
 if __name__ == "__main__":

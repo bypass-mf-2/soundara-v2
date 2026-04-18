@@ -72,9 +72,16 @@ log "Creating Python virtualenv at $VENV_DIR"
 log "Installing Python requirements"
 "$VENV_DIR/bin/pip" install -r "$APP_DIR/requirements.txt"
 
+log "Running SQLite migration (idempotent — safely no-ops after first run)"
+cd "$APP_DIR"
+"$VENV_DIR/bin/python" backend/migrate_json_to_sqlite.py || echo "(migration step failed; check logs)"
+
+log "Generating demo clips (idempotent — skips modes whose file already exists)"
+"$VENV_DIR/bin/python" backend/generate_demos.py || echo "(demo generation failed; check logs)"
+
 log "Installing frontend dependencies and building"
 cd "$FRONTEND_DIR"
-if [[ -f package-lock.json ]]; then npm ci; else npm install; fi
+npm install
 npm run build
 
 log "Fixing ownership to $APP_USER"
@@ -160,7 +167,7 @@ server {
     }
 
     # Backend routes proxied to uvicorn on 127.0.0.1:$BACKEND_PORT
-    location ~ ^/(health|library|user_library|user_playlists|user_subscriptions|process|process_audio|track_event|create_checkout_session|create_subscription_session|submit_survey|play|webhook|admin) {
+    location ~ ^/(health|library|user_library|user_playlists|user_subscriptions|process|process_audio|track_event|create_checkout_session|create_subscription_session|submit_survey|play|webhook|admin|api/referral|demo) {
         proxy_pass http://127.0.0.1:$BACKEND_PORT;
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
