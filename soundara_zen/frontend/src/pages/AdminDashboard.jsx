@@ -8,6 +8,7 @@ export default function AdminDashboard() {
     return stored ? JSON.parse(stored) : null;
   });
   const [stats, setStats] = useState(null);
+  const [interest, setInterest] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("overview");
   const API = import.meta.env.VITE_API_URL;
@@ -15,12 +16,15 @@ export default function AdminDashboard() {
   useEffect(() => {
     if (user?.email !== ADMIN_EMAIL) return;
     const adminToken = localStorage.getItem("admin_token") || "";
-    fetch(`${API}/admin/stats`, {
-      headers: { "X-Admin-Token": adminToken },
-    })
-      .then(r => r.json())
-      .then(data => { setStats(data); setLoading(false); })
-      .catch(() => setLoading(false));
+    const headers = { "X-Admin-Token": adminToken };
+    Promise.all([
+      fetch(`${API}/admin/stats`, { headers }).then(r => r.json()).catch(() => null),
+      fetch(`${API}/admin/interest`, { headers }).then(r => r.json()).catch(() => ({ submissions: [] })),
+    ]).then(([s, i]) => {
+      setStats(s);
+      setInterest(i?.submissions || []);
+      setLoading(false);
+    });
   }, [user, API]);
 
   if (!user || user.email !== ADMIN_EMAIL) {
@@ -44,7 +48,7 @@ export default function AdminDashboard() {
     </div>
   );
 
-  const tabs = ["overview", "events", "library", "subscriptions", "moderation"];
+  const tabs = ["overview", "events", "library", "subscriptions", "moderation", "interest"];
 
   const pillColors = {
     login:      { bg: "rgba(139, 168, 136, 0.15)", fg: "var(--zen-sage)" },
@@ -235,6 +239,41 @@ export default function AdminDashboard() {
                     <td style={{ padding: "8px", fontFamily: "monospace", fontSize: "11px", color: "var(--zen-earth)" }}>{userId.slice(0, 12)}...</td>
                     <td style={{ padding: "8px", color: "var(--zen-sage)" }}>{sub.plan || sub.type || "unknown"}</td>
                     <td style={{ padding: "8px", color: "var(--zen-earth)" }}>{JSON.stringify(sub).slice(0, 80)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      )}
+
+      {/* Interest submissions */}
+      {activeTab === "interest" && (
+        <div>
+          <h3 className="section-title" style={{ fontSize: "20px" }}>Envision Interest Submissions ({interest.length})</h3>
+          {interest.length === 0 ? (
+            <p style={{ color: "var(--zen-earth)" }}>No submissions yet.</p>
+          ) : (
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
+              <thead>
+                <tr style={{ borderBottom: "1px solid rgba(196, 181, 157, 0.3)" }}>
+                  <th style={{ textAlign: "left", padding: "10px 8px", color: "var(--zen-earth)", fontSize: "11px", letterSpacing: "1.5px", textTransform: "uppercase" }}>When</th>
+                  <th style={{ textAlign: "left", padding: "10px 8px", color: "var(--zen-earth)", fontSize: "11px", letterSpacing: "1.5px", textTransform: "uppercase" }}>Name</th>
+                  <th style={{ textAlign: "left", padding: "10px 8px", color: "var(--zen-earth)", fontSize: "11px", letterSpacing: "1.5px", textTransform: "uppercase" }}>Email</th>
+                  <th style={{ textAlign: "left", padding: "10px 8px", color: "var(--zen-earth)", fontSize: "11px", letterSpacing: "1.5px", textTransform: "uppercase" }}>Interest</th>
+                  <th style={{ textAlign: "left", padding: "10px 8px", color: "var(--zen-earth)", fontSize: "11px", letterSpacing: "1.5px", textTransform: "uppercase" }}>Notes</th>
+                </tr>
+              </thead>
+              <tbody>
+                {interest.map(row => (
+                  <tr key={row.id} style={{ borderBottom: "1px solid rgba(196, 181, 157, 0.15)" }}>
+                    <td style={{ padding: "8px", color: "var(--zen-earth)" }}>{row.created_at?.slice(0, 16).replace("T", " ")}</td>
+                    <td style={{ padding: "8px", color: "var(--zen-charcoal)" }}>{row.name || "-"}</td>
+                    <td style={{ padding: "8px", color: "var(--zen-charcoal)" }}>
+                      <a href={`mailto:${row.email}`} style={{ color: "var(--zen-sage)", textDecoration: "none" }}>{row.email}</a>
+                    </td>
+                    <td style={{ padding: "8px", color: "var(--zen-sage)" }}>{row.interest || "-"}</td>
+                    <td style={{ padding: "8px", color: "var(--zen-earth)", maxWidth: "400px" }}>{row.notes || "-"}</td>
                   </tr>
                 ))}
               </tbody>

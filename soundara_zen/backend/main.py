@@ -830,6 +830,127 @@ async def api_referral_validate(code: str):
     return {"valid": bool(referrer_id)}
 
 
+# --------------------
+# Envision: interest form + feature upvotes
+# --------------------
+ENVISION_NOTIFY_EMAIL = os.getenv("ENVISION_NOTIFY_EMAIL", "trevorm.goodwill@gmail.com")
+VALID_FEATURE_IDS = {
+    "custom_frequencies", "mode_playlists",
+    "search_database", "additional_music_tools", "direct_upload", "royalty",
+    "ai_tracks", "mobile_app",
+}
+VALID_INTERESTS = {"programming", "design", "marketing", "other"}
+
+
+def _send_interest_email(name: str, email: str, interest: str, notes: str) -> bool:
+    """Send notification email. Returns True if sent, False if SMTP not configured or send failed."""
+    host = os.getenv("SMTP_HOST")
+    user = os.getenv("SMTP_USER")
+    password = os.getenv("SMTP_PASSWORD")
+    if not (host and user and password):
+        return False
+    try:
+        import smtplib
+        from email.message import EmailMessage
+        port = int(os.getenv("SMTP_PORT", "587"))
+        msg = EmailMessage()
+        msg["Subject"] = f"[Soundara] New interest: {interest or 'unspecified'}"
+        msg["From"] = user
+        msg["To"] = ENVISION_NOTIFY_EMAIL
+        msg["Reply-To"] = email or user
+        msg.set_content(
+            f"New Envision interest submission:\n\n"
+            f"Name: {name or '(none)'}\n"
+            f"Email: {email or '(none)'}\n"
+            f"Interest: {interest or '(none)'}\n"
+            f"Notes:\n{notes or '(none)'}\n"
+        )
+        with smtplib.SMTP(host, port, timeout=10) as s:
+            s.starttls()
+            s.login(user, password)
+            s.send_message(msg)
+        return True
+    except Exception as e:
+        log_error(error_type="interest_email_failed", error_message=str(e), endpoint="/api/interest")
+        return False
+
+
+def _voter_key(request: Request, user_id: str | None) -> str:
+    """Stable per-voter key. Prefer user_id; fall back to client IP."""
+    if user_id:
+        return f"user:{user_id}"
+    ip = request.client.host if request.client else "unknown"
+    fwd = request.headers.get("x-forwarded-for")
+    if fwd:
+        ip = fwd.split(",")[0].strip()
+    return f"ip:{ip}"
+
+
+@app.post("/api/interest")
+async def api_interest_submit(request: Request):
+    """Envision page interest form. Stores submission and (optionally) emails admin."""
+    client_ip = request.client.host if request.client else "unknown"
+    await apply_endpoint_limit("/api/interest", client_ip)
+
+    data = await request.json()
+    name = (data.get("name") or "").strip()[:120]
+    email = (data.get("email") or "").strip()[:200]
+    interest = (data.get("interest") or "").strip().lower()
+    notes = (data.get("notes") or "").strip()[:2000]
+
+    if not email:
+        raise HTTPException(status_code=400, detail="Email is required")
+    try:
+        email = validate_email(email)
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid email")
+
+    if interest and interest not in VALID_INTERESTS:
+        interest = "other"
+
+    sub_id = db.add_interest_submission(name, email, interest, notes)
+    emailed = _send_interest_email(name, email, interest, notes)
+    return {"ok": True, "id": sub_id, "emailed": emailed}
+
+
+@app.post("/api/envision/upvote")
+async def api_envision_upvote(request: Request):
+    data = await request.json()
+    feature_id = (data.get("feature_id") or "").strip()
+    user_id = (data.get("user_id") or "").strip() or None
+
+    if feature_id not in VALID_FEATURE_IDS:
+        raise HTTPException(status_code=400, detail="Unknown feature")
+
+    voter = _voter_key(request, user_id)
+    newly_recorded = db.add_feature_upvote(feature_id, voter)
+    counts = db.feature_upvote_counts()
+    return {
+        "ok": True,
+        "already_voted": not newly_recorded,
+        "counts": counts,
+        "voted": db.voted_features(voter),
+    }
+
+
+@app.get("/api/envision/upvotes")
+async def api_envision_upvotes(request: Request, user_id: str | None = None):
+    voter = _voter_key(request, user_id)
+    return {
+        "counts": db.feature_upvote_counts(),
+        "voted": db.voted_features(voter),
+    }
+
+
+@app.get("/admin/interest")
+async def admin_list_interest(request: Request):
+    """Admin-only: list all Envision interest submissions."""
+    _require_admin(request)
+    return {"submissions": db.list_interest_submissions()}
+
+
 @app.post("/user_subscriptions/{user_id}/add")
 async def add_subscription(user_id: str, request: Request):
     """Add/update user subscription"""

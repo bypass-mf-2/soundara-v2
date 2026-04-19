@@ -14,7 +14,8 @@
       "Bash(python -c \"import ast; ast.parse\\(open\\('backend/main.py', encoding='utf-8'\\).read\\(\\)\\); print\\('main.py OK'\\)\")",
       "Bash(python -c \"import ast; ast.parse\\(open\\('backend/db.py', encoding='utf-8'\\).read\\(\\)\\); print\\('db.py OK'\\)\")",
       "Bash(python -c \"import ast; ast.parse\\(open\\('backend/webhooks.py', encoding='utf-8'\\).read\\(\\)\\); print\\('webhooks.py OK'\\)\")",
-      "Bash(python -c \"import ast; ast.parse\\(open\\('backend/create_coupons.py', encoding='utf-8'\\).read\\(\\)\\); print\\('create_coupons.py OK'\\)\")"
+      "Bash(python -c \"import ast; ast.parse\\(open\\('backend/create_coupons.py', encoding='utf-8'\\).read\\(\\)\\); print\\('create_coupons.py OK'\\)\")",
+      "Bash(python *)"
     ]
   }
 }

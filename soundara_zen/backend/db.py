@@ -139,6 +139,24 @@ CREATE TABLE IF NOT EXISTS referral_redemptions (
     UNIQUE (referred_user_id)
 );
 CREATE INDEX IF NOT EXISTS idx_referral_redemptions_referrer ON referral_redemptions(referrer_user_id);
+
+CREATE TABLE IF NOT EXISTS interest_submissions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT,
+    email TEXT,
+    interest TEXT,
+    notes TEXT,
+    created_at TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_interest_submissions_created ON interest_submissions(created_at);
+
+CREATE TABLE IF NOT EXISTS feature_upvotes (
+    feature_id TEXT NOT NULL,
+    voter_key TEXT NOT NULL,
+    created_at TEXT,
+    PRIMARY KEY (feature_id, voter_key)
+);
+CREATE INDEX IF NOT EXISTS idx_feature_upvotes_feature ON feature_upvotes(feature_id);
 """
 
 
@@ -705,3 +723,64 @@ def referral_count_for_user(user_id: str) -> int:
         (user_id,),
     ).fetchone()
     return int(r["n"])
+
+
+# ------------------------------------------------------------------
+# Interest submissions (Envision page "Show Interest" form)
+# ------------------------------------------------------------------
+def add_interest_submission(name: str, email: str, interest: str, notes: str) -> int:
+    from datetime import datetime
+    with _tx() as c:
+        cur = c.execute(
+            "INSERT INTO interest_submissions (name, email, interest, notes, created_at) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (name, email, interest, notes, datetime.utcnow().isoformat()),
+        )
+        return int(cur.lastrowid)
+
+
+def list_interest_submissions() -> list[dict]:
+    rows = _CONN.execute(
+        "SELECT id, name, email, interest, notes, created_at "
+        "FROM interest_submissions ORDER BY id DESC"
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
+# ------------------------------------------------------------------
+# Feature upvotes (Envision roadmap cards)
+# ------------------------------------------------------------------
+def add_feature_upvote(feature_id: str, voter_key: str) -> bool:
+    """Returns True if the vote was recorded, False if the voter already voted."""
+    from datetime import datetime
+    with _tx() as c:
+        try:
+            c.execute(
+                "INSERT INTO feature_upvotes (feature_id, voter_key, created_at) VALUES (?, ?, ?)",
+                (feature_id, voter_key, datetime.utcnow().isoformat()),
+            )
+            return True
+        except sqlite3.IntegrityError:
+            return False
+
+
+def feature_upvote_counts() -> dict[str, int]:
+    rows = _CONN.execute(
+        "SELECT feature_id, COUNT(*) AS n FROM feature_upvotes GROUP BY feature_id"
+    ).fetchall()
+    return {r["feature_id"]: int(r["n"]) for r in rows}
+
+
+def has_voted(feature_id: str, voter_key: str) -> bool:
+    r = _CONN.execute(
+        "SELECT 1 FROM feature_upvotes WHERE feature_id = ? AND voter_key = ?",
+        (feature_id, voter_key),
+    ).fetchone()
+    return r is not None
+
+
+def voted_features(voter_key: str) -> list[str]:
+    rows = _CONN.execute(
+        "SELECT feature_id FROM feature_upvotes WHERE voter_key = ?", (voter_key,)
+    ).fetchall()
+    return [r["feature_id"] for r in rows]
