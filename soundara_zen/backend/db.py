@@ -157,6 +157,19 @@ CREATE TABLE IF NOT EXISTS feature_upvotes (
     PRIMARY KEY (feature_id, voter_key)
 );
 CREATE INDEX IF NOT EXISTS idx_feature_upvotes_feature ON feature_upvotes(feature_id);
+
+CREATE TABLE IF NOT EXISTS users (
+    user_id TEXT PRIMARY KEY,
+    provider TEXT NOT NULL,
+    provider_sub TEXT NOT NULL,
+    email TEXT,
+    name TEXT,
+    picture TEXT,
+    created_at TEXT,
+    last_login_at TEXT,
+    UNIQUE (provider, provider_sub)
+);
+CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 """
 
 
@@ -784,3 +797,44 @@ def voted_features(voter_key: str) -> list[str]:
         "SELECT feature_id FROM feature_upvotes WHERE voter_key = ?", (voter_key,)
     ).fetchall()
     return [r["feature_id"] for r in rows]
+
+
+# ------------------------------------------------------------------
+# Users (identity records from social login providers)
+# ------------------------------------------------------------------
+def get_user_by_provider(provider: str, provider_sub: str) -> dict | None:
+    r = _CONN.execute(
+        "SELECT user_id, provider, provider_sub, email, name, picture, "
+        "created_at, last_login_at FROM users WHERE provider = ? AND provider_sub = ?",
+        (provider, provider_sub),
+    ).fetchone()
+    return _row_to_dict(r)
+
+
+def get_user(user_id: str) -> dict | None:
+    r = _CONN.execute(
+        "SELECT user_id, provider, provider_sub, email, name, picture, "
+        "created_at, last_login_at FROM users WHERE user_id = ?",
+        (user_id,),
+    ).fetchone()
+    return _row_to_dict(r)
+
+
+def upsert_user(
+    user_id: str,
+    provider: str,
+    provider_sub: str,
+    email: str | None,
+    name: str | None,
+    picture: str | None,
+    now_iso: str,
+) -> None:
+    with _tx() as c:
+        c.execute(
+            "INSERT INTO users (user_id, provider, provider_sub, email, name, picture, "
+            "created_at, last_login_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?) "
+            "ON CONFLICT(provider, provider_sub) DO UPDATE SET "
+            "email = excluded.email, name = excluded.name, picture = excluded.picture, "
+            "last_login_at = excluded.last_login_at",
+            (user_id, provider, provider_sub, email, name, picture, now_iso, now_iso),
+        )

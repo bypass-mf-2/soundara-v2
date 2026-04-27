@@ -1,0 +1,145 @@
+{
+  "_note": "Compositions are public domain (all composers died >70 years ago). Search queries bias toward Musopen / known royalty-free recordings. Run backend/seed_library.py to download, apply binaural processing, and register in the library.",
+  "tracks": [
+    {
+      "name": "Clair de Lune",
+      "composer": "Claude Debussy",
+      "search_query": "Debussy Clair de Lune piano Musopen public domain",
+      "mode": "theta",
+      "license": "PD"
+    },
+    {
+      "name": "Gymnopedie No. 1",
+      "composer": "Erik Satie",
+      "search_query": "Satie Gymnopedie No 1 piano Musopen public domain",
+      "mode": "theta",
+      "license": "PD"
+    },
+    {
+      "name": "Moonlight Sonata - 1st Movement",
+      "composer": "Ludwig van Beethoven",
+      "search_query": "Beethoven Moonlight Sonata 1st movement piano Musopen",
+      "mode": "delta",
+      "license": "PD"
+    },
+    {
+      "name": "Nocturne Op. 9 No. 2",
+      "composer": "Frederic Chopin",
+      "search_query": "Chopin Nocturne Op 9 No 2 E flat piano Musopen",
+      "mode": "theta",
+      "license": "PD"
+    },
+    {
+      "name": "Canon in D",
+      "composer": "Johann Pachelbel",
+      "search_query": "Pachelbel Canon in D strings Musopen public domain",
+      "mode": "alpha",
+      "license": "PD"
+    },
+    {
+      "name": "Air on the G String",
+      "composer": "Johann Sebastian Bach",
+      "search_query": "Bach Air on the G String orchestra Musopen public domain",
+      "mode": "alpha",
+      "license": "PD"
+    },
+    {
+      "name": "Prelude in C Major",
+      "composer": "Johann Sebastian Bach",
+      "search_query": "Bach Prelude C major Well Tempered Clavier piano Musopen",
+      "mode": "alpha",
+      "license": "PD"
+    },
+    {
+      "name": "Fur Elise",
+      "composer": "Ludwig van Beethoven",
+      "search_query": "Beethoven Fur Elise piano Musopen public domain",
+      "mode": "alpha",
+      "license": "PD"
+    },
+    {
+      "name": "Eine kleine Nachtmusik",
+      "composer": "Wolfgang Amadeus Mozart",
+      "search_query": "Mozart Eine kleine Nachtmusik allegro Musopen",
+      "mode": "alpha",
+      "license": "PD"
+    },
+    {
+      "name": "Ave Maria",
+      "composer": "Franz Schubert",
+      "search_query": "Schubert Ave Maria instrumental Musopen public domain",
+      "mode": "theta",
+      "license": "PD"
+    },
+    {
+      "name": "Morning Mood",
+      "composer": "Edvard Grieg",
+      "search_query": "Grieg Morning Mood Peer Gynt Musopen public domain",
+      "mode": "alpha",
+      "license": "PD"
+    },
+    {
+      "name": "Arabesque No. 1",
+      "composer": "Claude Debussy",
+      "search_query": "Debussy Arabesque No 1 piano Musopen public domain",
+      "mode": "alpha",
+      "license": "PD"
+    },
+    {
+      "name": "Spring - Four Seasons",
+      "composer": "Antonio Vivaldi",
+      "search_query": "Vivaldi Four Seasons Spring allegro Musopen",
+      "mode": "beta",
+      "license": "PD"
+    },
+    {
+      "name": "Ode to Joy",
+      "composer": "Ludwig van Beethoven",
+      "search_query": "Beethoven Symphony 9 Ode to Joy orchestra Musopen",
+      "mode": "beta",
+      "license": "PD"
+    },
+    {
+      "name": "In the Hall of the Mountain King",
+      "composer": "Edvard Grieg",
+      "search_query": "Grieg In the Hall of the Mountain King Peer Gynt Musopen",
+      "mode": "gamma",
+      "license": "PD"
+    },
+    {
+      "name": "Flight of the Bumblebee",
+      "composer": "Nikolai Rimsky-Korsakov",
+      "search_query": "Rimsky-Korsakov Flight of the Bumblebee orchestra Musopen",
+      "mode": "gamma",
+      "license": "PD"
+    },
+    {
+      "name": "Hallelujah Chorus",
+      "composer": "George Frideric Handel",
+      "search_query": "Handel Messiah Hallelujah Chorus Musopen public domain",
+      "mode": "gamma",
+      "license": "PD"
+    },
+    {
+      "name": "Brahms Lullaby",
+      "composer": "Johannes Brahms",
+      "search_query": "Brahms Lullaby Wiegenlied instrumental Musopen",
+      "mode": "delta",
+      "license": "PD"
+    },
+    {
+      "name": "Gnossienne No. 1",
+      "composer": "Erik Satie",
+      "search_query": "Satie Gnossienne No 1 piano Musopen public domain",
+      "mode": "theta",
+      "license": "PD"
+    },
+    {
+      "name": "New World Symphony - Largo",
+      "composer": "Antonin Dvorak",
+      "search_query": "Dvorak New World Symphony 2nd movement Largo Musopen",
+      "mode": "theta",
+      "license": "PD"
+    }
+  ]
+}

@@ -146,6 +146,11 @@ ADMIN_API_TOKEN = os.getenv("ADMIN_API_TOKEN")
 stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
 MIN_PRICE_CENTS = 170
 
+# Temporary "everything is free" promo switch.
+# When DISABLE_PAYWALL=true, /play serves full audio for everyone, and the
+# checkout endpoints short-circuit instead of redirecting to Stripe.
+DISABLE_PAYWALL = os.getenv("DISABLE_PAYWALL", "false").lower() == "true"
+
 # SQLite database
 DB_FILE = os.environ.get("DB_FILE") or os.path.join(BASE_DIR, "soundara.db")
 
@@ -396,6 +401,84 @@ async def health_check():
 
 
 # --------------------
+# Social login (Google)
+# --------------------
+GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
+
+
+@app.post("/auth/google")
+async def auth_google(request: Request):
+    """
+    Verify a Google ID token (credential from @react-oauth/google),
+    find-or-create the user, and issue our own JWT.
+    """
+    if not GOOGLE_CLIENT_ID:
+        raise HTTPException(status_code=500, detail="Google login not configured")
+
+    body = await request.json()
+    credential = (body or {}).get("credential")
+    if not credential or not isinstance(credential, str):
+        raise HTTPException(status_code=400, detail="Missing credential")
+
+    # Verify the ID token signature + audience with Google's public keys
+    try:
+        from google.oauth2 import id_token as google_id_token
+        from google.auth.transport import requests as google_requests
+        claims = google_id_token.verify_oauth2_token(
+            credential, google_requests.Request(), GOOGLE_CLIENT_ID
+        )
+    except ValueError as e:
+        log_security_event(
+            event_type="google_auth_invalid_token",
+            severity="medium",
+            ip_address=request.client.host if request.client else None,
+            details={"error": str(e)[:200]},
+        )
+        raise HTTPException(status_code=401, detail="Invalid Google credential")
+
+    sub = claims.get("sub")
+    if not sub:
+        raise HTTPException(status_code=401, detail="Invalid Google credential")
+
+    email = claims.get("email")
+    name = claims.get("name")
+    picture = claims.get("picture")
+
+    # Use Google sub as our internal user_id so existing library/playlist/subscription
+    # records (already keyed by sub) keep working without migration.
+    user_id = validate_user_id(sub)
+
+    db.upsert_user(
+        user_id=user_id,
+        provider="google",
+        provider_sub=sub,
+        email=email,
+        name=name,
+        picture=picture,
+        now_iso=datetime.utcnow().isoformat(),
+    )
+
+    is_admin = bool(email and email.lower() == ADMIN_EMAIL.lower())
+    access_token = create_access_token({
+        "sub": user_id,
+        "email": email,
+        "is_admin": is_admin,
+    })
+
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "user": {
+            "id": user_id,
+            "email": email,
+            "name": name,
+            "picture": picture,
+            "is_admin": is_admin,
+        },
+    }
+
+
+# --------------------
 # Public demo (no auth)
 # --------------------
 DEMO_MODES = [
@@ -604,6 +687,14 @@ async def track_event(request: Request):
     return {"status": "ok"}
 
 
+@app.get("/api/config")
+async def get_public_config():
+    """Public, non-sensitive config the frontend reads at load time."""
+    return {
+        "disable_paywall": DISABLE_PAYWALL,
+    }
+
+
 @app.post("/create_checkout_session/")
 async def create_checkout_session(request: Request):
     """Create Stripe checkout session"""
@@ -625,6 +716,16 @@ async def create_checkout_session(request: Request):
         user_id = validate_user_id(user_id)
         if user_email:
             user_email = validate_email(user_email)
+
+        # Promo: paywall disabled globally — everyone gets the track free
+        if DISABLE_PAYWALL:
+            logger.info(f"DISABLE_PAYWALL active: bypassing checkout for {user_id}")
+            db.add_to_user_library(user_id, track)
+            return {
+                "url": None,
+                "message": "Free for a limited time — track added to your library!",
+                "track": track["name"]
+            }
 
         # Free user bypass
         if user_email in FREE_USERS:
@@ -705,6 +806,14 @@ async def create_subscription_session(request: Request):
         raise HTTPException(status_code=400, detail="Missing user_id or plan")
 
     user_id = validate_user_id(user_id)
+
+    # Promo: paywall disabled globally — no subscription needed
+    if DISABLE_PAYWALL:
+        logger.info(f"DISABLE_PAYWALL active: skipping subscription checkout for {user_id}")
+        return {
+            "url": None,
+            "message": "Free for a limited time — no subscription needed!"
+        }
 
     # Current plan names: "pro" / "pro_annual" / "creator" / "creator_annual"
     # Legacy names ("limited" / "unlimited") kept for backward-compat.
@@ -990,7 +1099,7 @@ async def play_track(track_name: str, user_id: str):
             user_sub["tracks_used"] += 1
             db.set_subscription(user_id, user_sub)
 
-    filename = get_audio_file(track, has_paid or is_subscribed)
+    filename = get_audio_file(track, has_paid or is_subscribed or DISABLE_PAYWALL)
     path = os.path.join(LIBRARY_FOLDER, filename)
 
     if not os.path.exists(path):

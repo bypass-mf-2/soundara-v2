@@ -22,10 +22,37 @@ import logo from "./assets/soundara.jpg";
 
 import { usePlayer } from "./PlayerContext.jsx";
 import { GoogleLogin, googleLogout } from "@react-oauth/google";
-import { jwtDecode } from "jwt-decode";
 import { trackEvent } from "./track_event.js";
 
 function LoginScreen({ onLogin }) {
+  const [error, setError] = useState(null);
+
+  const handleGoogleCredential = async (credentialResponse) => {
+    setError(null);
+    try {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/auth/google`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ credential: credentialResponse.credential }),
+      });
+      if (!res.ok) {
+        const detail = await res.json().catch(() => ({}));
+        throw new Error(detail.detail || `Login failed (${res.status})`);
+      }
+      const { access_token, user } = await res.json();
+      onLogin({ ...user, token: access_token });
+      trackEvent({
+        type: "login",
+        user: user.id,
+        name: user.name,
+        picture: user.picture,
+      });
+    } catch (e) {
+      console.error("Login failed:", e);
+      setError(e.message || "Login failed. Please try again.");
+    }
+  };
+
   return (
     <div className="login-gate">
       <div className="login-gate-card">
@@ -57,31 +84,39 @@ function LoginScreen({ onLogin }) {
         </p>
         <div className="login-gate-btns">
           <GoogleLogin
-            onSuccess={(credentialResponse) => {
-              const profile = jwtDecode(credentialResponse.credential);
-              const userData = {
-                name: profile.name,
-                email: profile.email,
-                picture: profile.picture,
-                id: profile.sub,
-              };
-              onLogin(userData);
-              trackEvent({
-                type: "login",
-                user: profile.sub,
-                name: profile.name,
-                picture: profile.picture,
-              });
-            }}
-            onError={() => console.log("Login Failed")}
+            onSuccess={handleGoogleCredential}
+            onError={() => setError("Google sign-in was cancelled or blocked.")}
           />
+          {error && (
+            <p style={{ marginTop: 12, color: "#b00020", fontSize: 13 }}>
+              {error}
+            </p>
+          )}
         </div>
       </div>
     </div>
   );
 }
 
-function AppInner({ user, onLogin, onLogout, playlistTracks, addToPlaylist, library, setLibrary, userHasBought }) {
+function PromoBanner() {
+  return (
+    <div
+      style={{
+        background: "var(--zen-sage)",
+        color: "white",
+        textAlign: "center",
+        padding: "10px 16px",
+        fontSize: "13px",
+        letterSpacing: "1.5px",
+        textTransform: "uppercase",
+      }}
+    >
+      ✨ Free for a limited time — every track, every tool, no signup fee
+    </div>
+  );
+}
+
+function AppInner({ user, onLogin, onLogout, playlistTracks, addToPlaylist, library, setLibrary, userHasBought, paywallDisabled }) {
   const location = useLocation();
 
   // Routes accessible without authentication
@@ -94,6 +129,7 @@ function AppInner({ user, onLogin, onLogout, playlistTracks, addToPlaylist, libr
 
   return (
     <>
+      {paywallDisabled && <PromoBanner />}
       {user && <Navbar user={user} onLogout={onLogout} />}
       <Routes>
         <Route path="/demo" element={<Demo />} />
@@ -129,7 +165,7 @@ function AppInner({ user, onLogin, onLogout, playlistTracks, addToPlaylist, libr
             />
             <Route path="/about" element={<About playlist={playlistTracks} addToPlaylist={addToPlaylist} library={library} />} />
             <Route path="/contact" element={<Contact playlist={playlistTracks} addToPlaylist={addToPlaylist} />} />
-            <Route path="/pricing" element={<Pricing playlist={playlistTracks} addToPlaylist={addToPlaylist} />} />
+            <Route path="/pricing" element={<Pricing playlist={playlistTracks} addToPlaylist={addToPlaylist} paywallDisabled={paywallDisabled} />} />
             <Route path="/future" element={<Future playlist={playlistTracks} addToPlaylist={addToPlaylist} />} />
             <Route path="/tools" element={<MusicTools />} />
             <Route path="/creator" element={<CreatorDashboard />} />
@@ -163,6 +199,14 @@ function AppInner({ user, onLogin, onLogout, playlistTracks, addToPlaylist, libr
 export default function App() {
   const [user, setUser] = useState(null);
   const [library, setLibrary] = useState([]);
+  const [paywallDisabled, setPaywallDisabled] = useState(false);
+
+  useEffect(() => {
+    fetch(`${import.meta.env.VITE_API_URL}/api/config`)
+      .then(r => r.ok ? r.json() : null)
+      .then(cfg => { if (cfg) setPaywallDisabled(!!cfg.disable_paywall); })
+      .catch(() => {});
+  }, []);
 
   const {
     playlists,
@@ -229,6 +273,7 @@ export default function App() {
         library={library}
         setLibrary={setLibrary}
         userHasBought={userHasBought}
+        paywallDisabled={paywallDisabled}
       />
     </BrowserRouter>
   );

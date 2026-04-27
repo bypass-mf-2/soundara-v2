@@ -144,7 +144,7 @@ export default function Home() {
       const data = await res.json();
 
       if (!data.url) {
-        alert(`Free user! Track "${data.track}" added to your library.`);
+        alert(data.message || `Track "${data.track}" added to your library.`);
         return;
       }
       if (data.url) {

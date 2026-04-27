@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 
-export default function Pricing() {
+export default function Pricing({ paywallDisabled = false }) {
   const user = JSON.parse(localStorage.getItem("user") || "null");
   const USER_ID = user?.id;
   const [userSub, setUserSub] = useState(null);
@@ -96,10 +96,21 @@ export default function Pricing() {
     <div className="container">
       <section className="hero" style={{ marginTop: "40px", paddingBottom: "20px" }}>
         <h1 className="hero-title" style={{ fontSize: "48px" }}>Pricing</h1>
-        <p className="hero-subtitle">Start free. Upgrade when you're ready.</p>
-        <p style={{ color: "var(--zen-sage)", fontSize: "13px", letterSpacing: "1px", marginTop: "8px" }}>
-          ✨ 3-day free trial on all paid plans
-        </p>
+        {paywallDisabled ? (
+          <>
+            <p className="hero-subtitle">Everything is free for a limited time.</p>
+            <p style={{ color: "var(--zen-sage)", fontSize: "13px", letterSpacing: "1px", marginTop: "8px" }}>
+              ✨ All Pro and Creator features unlocked — no payment required
+            </p>
+          </>
+        ) : (
+          <>
+            <p className="hero-subtitle">Start free. Upgrade when you're ready.</p>
+            <p style={{ color: "var(--zen-sage)", fontSize: "13px", letterSpacing: "1px", marginTop: "8px" }}>
+              ✨ 3-day free trial on all paid plans
+            </p>
+          </>
+        )}
       </section>
 
       {/* Billing toggle */}
@@ -252,9 +263,13 @@ export default function Pricing() {
             className="btn btn-primary"
             style={{ width: "100%", marginTop: "12px" }}
             onClick={() => handleSubscribe(proPlanId)}
-            disabled={currentPlan === proPlanId}
+            disabled={paywallDisabled || currentPlan === proPlanId}
           >
-            {currentPlan === proPlanId ? "Current Plan" : "Start Free Trial"}
+            {paywallDisabled
+              ? "Free for now"
+              : currentPlan === proPlanId
+                ? "Current Plan"
+                : "Start Free Trial"}
           </button>
         </div>
 
@@ -283,9 +298,13 @@ export default function Pricing() {
             className="btn btn-primary"
             style={{ width: "100%", marginTop: "12px" }}
             onClick={() => handleSubscribe(creatorPlanId)}
-            disabled={currentPlan === creatorPlanId}
+            disabled={paywallDisabled || currentPlan === creatorPlanId}
           >
-            {currentPlan === creatorPlanId ? "Current Plan" : "Start Free Trial"}
+            {paywallDisabled
+              ? "Free for now"
+              : currentPlan === creatorPlanId
+                ? "Current Plan"
+                : "Start Free Trial"}
           </button>
         </div>
       </div>
